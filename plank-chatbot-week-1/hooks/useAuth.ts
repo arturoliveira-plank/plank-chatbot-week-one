@@ -3,15 +3,18 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { User } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
+      
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -35,20 +38,6 @@ export function useAuth() {
       })
 
       if (error) throw error
-
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              email: email,
-            },
-          ])
-
-        if (profileError) throw profileError
-      }
-
       return { data, error: null }
     } catch (error) {
       return { data: null, error }
@@ -63,7 +52,8 @@ export function useAuth() {
       })
 
       if (error) throw error
-
+      
+      router.push('/dashboard')
       return { data, error: null }
     } catch (error) {
       return { data: null, error }

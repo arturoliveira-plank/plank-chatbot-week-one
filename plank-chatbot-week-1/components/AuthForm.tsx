@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { AuthError } from '@supabase/supabase-js'
+
 export function AuthForm() {
   const [isLogin, setIsLogin] = useState(true)
   const [email, setEmail] = useState('')
@@ -29,14 +30,15 @@ export function AuthForm() {
         setError((error as AuthError).message)
       } else {
         if (isLogin) {
-          setSuccess('Login realizado com sucesso!')
+          setSuccess('Login successful!')
           router.push('/')
         } else {
-          setSuccess('Conta criada com sucesso! Por favor, verifique seu email para confirmar sua conta.')
+          setSuccess('Account created successfully! You can now sign in.')
+          setIsLogin(true)
         }
       }
     } catch (err) {
-      setError('Ocorreu um erro inesperado')
+      setError('An unexpected error occurred')
     } finally {
       setLoading(false)
     }
@@ -47,7 +49,7 @@ export function AuthForm() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            {isLogin ? 'Entre na sua conta' : 'Crie uma nova conta'}
+            {isLogin ? 'Sign in to your account' : 'Create a new account'}
           </h2>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
