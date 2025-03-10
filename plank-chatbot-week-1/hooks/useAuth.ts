@@ -27,23 +27,46 @@ export function useAuth() {
 
   const signUp = async (email: string, password: string) => {
     try {
+      // Primeiro, verifica se o usuário já existe
+      const { data: existingUser } = await supabase
+        .from('auth.users')
+        .select('email')
+        .eq('email', email)
+        .single()
+  
+      if (existingUser) {
+        return { 
+          data: null, 
+          error: new Error('Este email já está cadastrado. Por favor, faça login ou use outro email.') 
+        }
+      }
+  
+      // Se não existir, cria o novo usuário
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             email: email,
           },
         },
       })
-
+  
       if (error) throw error
-      return { data, error: null }
+  
+      return { 
+        data, 
+        error: null,
+        message: 'Por favor, verifique seu email para confirmar sua conta.' 
+      }
     } catch (error) {
-      return { data: null, error }
+      return { 
+        data: null, 
+        error 
+      }
     }
-  }
-
+  } 
   const signIn = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
