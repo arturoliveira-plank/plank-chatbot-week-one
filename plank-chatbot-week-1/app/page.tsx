@@ -1,6 +1,6 @@
 import { ChatWindow } from "@/components/ChatWindow";
 import { GuideInfoBox } from "@/components/guide/GuideInfoBox";
-
+import ChatInterface from "@/components/ChatInterface";
 export default function Home() {
   const InfoCard = (
     <GuideInfoBox>
@@ -8,7 +8,7 @@ export default function Home() {
         <li className="text-l">
           🤝
           <span className="ml-2">
-            This template showcases a simple chatbot using{" "}
+            Chatbot using{" "}
             <a href="https://js.langchain.com/" target="_blank">
               LangChain.js
             </a>{" "}
@@ -25,10 +25,7 @@ export default function Home() {
         </li>
         <li className="hidden text-l md:block">
           💻
-          <span className="ml-2">
-            You can find the prompt and model logic for this use-case in{" "}
-            <code>app/api/chat/route.ts</code>.
-          </span>
+
         </li>
         <li>
           🏴‍☠️
@@ -53,11 +50,12 @@ export default function Home() {
     </GuideInfoBox>
   );
   return (
-    <ChatWindow
-      endpoint="api/chat"
-      emoji="🏴‍☠️"
-      placeholder="I'm an LLM pretending to be a pirate! Ask me about the pirate life!"
-      emptyStateComponent={InfoCard}
-    />
+    // <ChatWindow
+    //   endpoint="api/chat"
+    //   emoji="🏴‍☠️"
+    //   placeholder="I'm an LLM pretending to be a pirate! Ask me about the pirate life!"
+    //   emptyStateComponent={InfoCard}
+    // />
+    <ChatInterface />
   );
 }
