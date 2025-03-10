@@ -63,27 +63,16 @@ export default function RootLayout({
                 >
                   <Logo />
                 </a>
-                <nav className="flex gap-1 flex-col md:flex-row">
-                  <ActiveLink href="/">💬 Chat</ActiveLink>
-                  <ActiveLink href="/auth">🔐 Auth</ActiveLink>
-                </nav>
               </div>
 
               <div className="flex gap-2 justify-center">
                 <AuthButton />
-                <Button asChild variant="outline" size="default">
-                  <a
-                    href="https://github.com/yourusername/your-repo"
-                    target="_blank"
-                  >
-                    <GithubIcon className="size-3" />
-                    <span>GitHub</span>
-                  </a>
-                </Button>
               </div>
             </div>
-            <div className="bg-background mx-4 relative grid rounded-t-2xl border border-input border-b-0">
-              <div className="absolute inset-0">{children}</div>
+            <div className="flex items-center justify-center p-4">
+              <div className="bg-background relative grid rounded-2xl border border-input w-full max-w-4xl h-[calc(100vh-12rem)] shadow-lg">
+                <div className="absolute inset-0 overflow-hidden rounded-2xl">{children}</div>
+              </div>
             </div>
           </div>
           <Toaster />

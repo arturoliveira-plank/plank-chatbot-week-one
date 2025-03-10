@@ -32,7 +32,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+    <div className="flex flex-col h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, i) => (
           <div 
@@ -58,7 +58,7 @@ export default function ChatInterface() {
       </div>
       
       <form onSubmit={handleSubmit} className="p-4 bg-gray-800 border-t border-gray-700">
-        <div className="flex gap-2 max-w-4xl mx-auto">
+        <div className="flex gap-2">
           <input
             type="text"
             value={input}
