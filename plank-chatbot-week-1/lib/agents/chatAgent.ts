@@ -20,14 +20,14 @@ async function processMessage(state: AgentState, message: string) {
     };
 
     // Process the message using ChatAgent
-    const newState = await chatAgent.sendMessage(message, currentState);
+    const newState = await chatAgent.processMessage(message, currentState);
     
     // Convert the response back to the format expected by the interface
     return {
       messages: newState.messages.map(msg => ({
         role: msg.role,
         content: msg.content
-      }))
+      })) as ChatCompletionMessageParam[]
     };
   } catch (error) {
     console.error("Error processing message:", error);

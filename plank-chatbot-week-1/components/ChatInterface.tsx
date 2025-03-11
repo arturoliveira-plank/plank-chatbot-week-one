@@ -1,28 +1,50 @@
 "use client";
 
-import { useState } from 'react';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { chatAgent } from '../lib/agents/chatAgent';
+import { useChat } from '@ai-sdk/react';
+import { useState, useEffect } from 'react';
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<BaseMessage[]>([]);
-  const [input, setInput] = useState('');
+  // Generate a unique ID for the chat session if it doesn't exist
+  const [chatId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedId = localStorage.getItem('chatId');
+      return savedId || `chat-${Date.now()}`;
+    }
+    return `chat-${Date.now()}`;
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const userMessage = new HumanMessage(input);
-    
-    // Updating state
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+  // Load saved messages from localStorage
+  const [savedMessages, setSavedMessages] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`messages-${chatId}`);
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
 
-    // Processing with agent  
-    const result = await chatAgent(input);
-    // Updating messages with response
-    const aiMessage = new AIMessage(result.messages[result.messages.length - 1].content as string);
-    setMessages(prev => [...prev, aiMessage]);
-  };
+  const { messages, input, handleInputChange, handleSubmit } = useChat({
+    id: chatId,
+    initialMessages: savedMessages,
+    api: '/api/chat',
+    onFinish: (message) => {
+      // Save messages to localStorage when a new message is added
+      const updatedMessages = [...messages, message];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`messages-${chatId}`, JSON.stringify(updatedMessages));
+      }
+    },
+  });
+
+  // Save chatId to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatId', chatId);
+    }
+  }, [chatId]);
+
+  useEffect(() => {
+    console.log("messages", messages);
+  }, [messages]);
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white">
@@ -30,20 +52,20 @@ export default function ChatInterface() {
         {messages.map((message, i) => (
           <div 
             key={i} 
-            className={`flex ${message instanceof HumanMessage ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div 
               className={`max-w-[70%] p-4 rounded-2xl shadow-lg transform transition-all duration-300 hover:scale-105 ${
-                message instanceof HumanMessage 
+                message.role === 'user'
                   ? 'bg-blue-600 text-white' 
                   : 'bg-gray-700 text-gray-100'
               }`}
             >
               <div className="whitespace-pre-wrap">
-                {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
+                {message.content}
               </div>
-              <div className={`mt-2 text-xs opacity-70 ${message instanceof HumanMessage ? 'text-right' : 'text-left'}`}>
-                {message instanceof HumanMessage ? 'You' : 'Assistant'}
+              <div className={`mt-2 text-xs opacity-70 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                {message.role === 'user' ? 'You' : 'Assistant'}
               </div>
             </div>
           </div>
@@ -55,7 +77,7 @@ export default function ChatInterface() {
           <input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             className="flex-1 p-3 rounded-lg bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300"
             placeholder="Type your message..."
           />
