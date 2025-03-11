@@ -4,7 +4,6 @@ import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react';
 
 export default function ChatInterface() {
-  // Generate a unique ID for the chat session if it doesn't exist
   const [chatId] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedId = localStorage.getItem('chatId');
@@ -13,59 +12,86 @@ export default function ChatInterface() {
     return `chat-${Date.now()}`;
   });
 
-  // Load saved messages from localStorage
-  const [savedMessages, setSavedMessages] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(`messages-${chatId}`);
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  // Add state for streaming content
+  const [streamingContent, setStreamingContent] = useState("");
 
-  const { messages, input, handleInputChange, handleSubmit } = useChat({
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
     id: chatId,
-    initialMessages: savedMessages,
     api: '/api/chat',
-    onFinish: (message) => {
-      // Save messages to localStorage when a new message is added
-      const updatedMessages = [...messages, message];
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`messages-${chatId}`, JSON.stringify(updatedMessages));
+    body: {
+      id: chatId,
+    },
+    onResponse: async (response) => {
+      if (!response.ok) {
+        console.error('Response error:', response.statusText);
+        return;
+      }
+      
+      try {
+        const reader = response.body?.getReader();
+        if (!reader) return;
+        
+        // Reset streaming content at the start of new response
+        setStreamingContent("");
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          // Convert the chunk to text and append to streaming content
+          const text = new TextDecoder().decode(value);
+          setStreamingContent(prev => prev + text);
+        }
+      } catch (error) {
+        console.error('Error reading stream:', error);
       }
     },
+    onFinish: (message) => {
+      // Clear streaming content when message is complete
+      setStreamingContent("");
+      console.log('Finished message:', message);
+    }
   });
 
-  // Save chatId to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('chatId', chatId);
-    }
-  }, [chatId]);
-
-  useEffect(() => {
-    console.log("messages", messages);
-  }, [messages]);
+  // Combine actual messages with streaming content for display
+  const displayMessages = [...messages];
+  if (streamingContent) {
+    displayMessages.push({
+      id: 'streaming',
+      role: 'assistant',
+      content: streamingContent,
+      parts: [
+        {
+          type: 'text',
+          text: streamingContent,
+        },
+      ],
+    });
+  }
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message, i) => (
+        {displayMessages.map((message, i) => (
           <div 
-            key={i} 
+            key={message.id || i} 
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div 
-              className={`max-w-[70%] p-4 rounded-2xl shadow-lg transform transition-all duration-300 hover:scale-105 ${
-                message.role === 'user'
+              className={`max-w-[70%] p-4 rounded-2xl ${
+                message.role === 'user' 
                   ? 'bg-blue-600 text-white' 
                   : 'bg-gray-700 text-gray-100'
               }`}
             >
               <div className="whitespace-pre-wrap">
                 {message.content}
+                {message.id === 'streaming' && (
+                  <span className="inline-block animate-pulse">▊</span>
+                )}
               </div>
-              <div className={`mt-2 text-xs opacity-70 ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
-                {message.role === 'user' ? 'You' : 'Assistant'}
+              <div className="text-sm text-gray-300 mt-2">
+                {message.role === 'user' ? 'You' : 'AI'}
               </div>
             </div>
           </div>
@@ -83,7 +109,10 @@ export default function ChatInterface() {
           />
           <button 
             type="submit"
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
+            className={`px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             Send
           </button>
