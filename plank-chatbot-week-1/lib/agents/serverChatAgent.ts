@@ -1,5 +1,3 @@
-"use client";
-
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs";
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
@@ -17,7 +15,7 @@ interface ChatState {
 
 const SYSTEM_PROMPT = `You are a helpful assistant that can answer questions and help with tasks.`;
 
-export class ChatAgent {
+export class ServerChatAgent {
   private model: ChatOpenAI;
   private client?: Client;
   private chain: RunnableSequence;
@@ -71,9 +69,17 @@ export class ChatAgent {
   }
 }
 
+export async function serverChatAgent(initialMessage: string) {
+  const initialState: AgentState = {
+    messages: []
+  };
+
+  return await processMessage(initialState, initialMessage);
+}
+
 async function processMessage(state: AgentState, message: string) {
   try {
-    const chatAgent = new ChatAgent();
+    const chatAgent = new ServerChatAgent();
     
     // Convert the current state to the format expected by ChatAgent
     const currentState = {
@@ -97,14 +103,4 @@ async function processMessage(state: AgentState, message: string) {
     console.error("Error processing message:", error);
     throw error;
   }
-}
-
-// Main agent function
-export async function chatAgent(initialMessage: string) {
-  const initialState: AgentState = {
-    messages: []
-  };
-
-  return await processMessage(initialState, initialMessage);
-}
-
+} 

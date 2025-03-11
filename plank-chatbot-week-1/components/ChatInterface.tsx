@@ -60,12 +60,6 @@ export default function ChatInterface() {
       id: 'streaming',
       role: 'assistant',
       content: streamingContent,
-      parts: [
-        {
-          type: 'text',
-          text: streamingContent,
-        },
-      ],
     });
   }
 
