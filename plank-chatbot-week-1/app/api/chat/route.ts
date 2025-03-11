@@ -10,11 +10,19 @@ interface Message {
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json();
-    const { messages } = json;
+    const { messages, id } = json;
     const lastMessage = messages[messages.length - 1];
+    
+    // Get all previous messages except the last one (which is the current user message)
+    const previousMessages = messages.slice(0, messages.length - 1);
 
     const chatAgent = new ServerChatAgent();
-    const stream = await chatAgent.streamResponse(lastMessage.content);
+    // Pass the current message, previous messages history, and the conversation ID
+    const stream = await chatAgent.streamResponse(
+      lastMessage.content, 
+      previousMessages,
+      id // Pass the conversation ID from the frontend
+    );
 
     return new NextResponse(stream, {
       headers: {

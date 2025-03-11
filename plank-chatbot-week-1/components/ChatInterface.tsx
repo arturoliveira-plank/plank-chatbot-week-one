@@ -7,10 +7,22 @@ export default function ChatInterface() {
   const [chatId] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedId = localStorage.getItem('chatId');
-      return savedId || `chat-${Date.now()}`;
+      if (savedId) return savedId;
+      
+      // Generate a new chat ID and save it
+      const newId = `chat-${Date.now()}`;
+      localStorage.setItem('chatId', newId);
+      return newId;
     }
     return `chat-${Date.now()}`;
   });
+
+  // Save chatId to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatId', chatId);
+    }
+  }, [chatId]);
 
   // Add state for streaming content
   const [streamingContent, setStreamingContent] = useState("");
