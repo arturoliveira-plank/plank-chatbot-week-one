@@ -1,37 +1,41 @@
 "use client";
 
-import { OpenAI } from "openai";
-import { wrapOpenAI } from "langsmith/wrappers";
-import { ChatCompletionMessageParam } from "openai/resources/chat";
-
-const openAIClient = wrapOpenAI(new OpenAI());
+import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs";
+import { ChatAgent } from "../../app/api/chat/route";
 
 interface AgentState {
   messages: ChatCompletionMessageParam[];
 }
 
 async function processMessage(state: AgentState, message: string) {
-  const updatedMessages: ChatCompletionMessageParam[] = [
-    ...state.messages,
-    { role: "user", content: message }
-  ];
+  try {
+    const chatAgent = new ChatAgent();
+    
+    // Convert the current state to the format expected by ChatAgent
+    const currentState = {
+      messages: state.messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content as string
+      }))
+    };
 
-  const completion = await openAIClient.chat.completions.create({
-    messages: updatedMessages,
-    model: "gpt-4o-mini",
-  });
-
-  const assistantMessage = completion.choices[0].message;
-  
-  return {
-    messages: [
-      ...updatedMessages,
-      assistantMessage
-    ]
-  };
+    // Process the message using ChatAgent
+    const newState = await chatAgent.sendMessage(message, currentState);
+    
+    // Convert the response back to the format expected by the interface
+    return {
+      messages: newState.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+    };
+  } catch (error) {
+    console.error("Error processing message:", error);
+    throw error;
+  }
 }
 
-// Função principal do agente
+// Main agent function
 export async function chatAgent(initialMessage: string) {
   const initialState: AgentState = {
     messages: []
