@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { createChatAgent } from '../lib/agents/chatAgent';
+import { chatAgent } from '../lib/agents/chatAgent';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<BaseMessage[]>([]);
   const [input, setInput] = useState('');
-  const chatAgent = createChatAgent();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,15 +18,9 @@ export default function ChatInterface() {
     setInput('');
 
     // Processing with agent  
-    const result = await chatAgent.invoke({
-      messages: [...messages, userMessage]
-    });
+    const result = await chatAgent(input);
     // Updating messages with response
-    const lastMessage = result.messages[result.messages.length - 1];
-    const messageContent = typeof lastMessage.content === 'string' 
-      ? lastMessage.content 
-      : JSON.stringify(lastMessage.content);
-    const aiMessage = new AIMessage(messageContent);
+    const aiMessage = new AIMessage(result.messages[result.messages.length - 1].content as string);
     setMessages(prev => [...prev, aiMessage]);
   };
 

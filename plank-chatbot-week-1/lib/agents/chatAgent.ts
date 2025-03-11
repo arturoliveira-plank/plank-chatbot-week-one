@@ -1,73 +1,42 @@
 "use client";
 
-import { RunnableSequence } from "@langchain/core/runnables";
-import { OpenAI } from "@langchain/openai";
-import { BaseMessage } from "@langchain/core/messages";
+import { OpenAI } from "openai";
+import { wrapOpenAI } from "langsmith/wrappers";
+import { ChatCompletionMessageParam } from "openai/resources/chat";
 
-interface OpenAIResponse {
-  choices: Array<{
-    message: {
-      content: string;
-      role: string;
-    };
-  }>;
+const openAIClient = wrapOpenAI(new OpenAI());
+
+interface AgentState {
+  messages: ChatCompletionMessageParam[];
 }
 
-// Definindo o tipo do estado
-interface ChatState {
-  messages: BaseMessage[];
-}
+async function processMessage(state: AgentState, message: string) {
+  const updatedMessages: ChatCompletionMessageParam[] = [
+    ...state.messages,
+    { role: "user", content: message }
+  ];
 
-// Inicializando o modelo LLM
-const model = new OpenAI({
-  modelName: "gpt-4o-mini",
-  temperature: 0.7,
-  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY 
-});
+  const completion = await openAIClient.chat.completions.create({
+    messages: updatedMessages,
+    model: "gpt-4o-mini",
+  });
 
-// Função para processar a mensagem
-const processMessage = async (state: ChatState) => {
-  const response = await model.invoke(state.messages);
-  const messageContent = typeof response === 'object' && response !== null && 'choices' in response
-    ? (response as OpenAIResponse).choices?.[0]?.message?.content || ''
-    : String(response);
+  const assistantMessage = completion.choices[0].message;
+  
   return {
-    messages: [...state.messages, { role: 'assistant', content: messageContent }]
+    messages: [
+      ...updatedMessages,
+      assistantMessage
+    ]
   };
-};
-
-// Criando o agente
-export const createChatAgent = () => {
-  return RunnableSequence.from([
-    (state: ChatState) => state,
-    processMessage
-  ]);
-};
-
-const systemPrompt = `Você é um especialista em programação que ajuda a melhorar código.
-Sua tarefa é analisar o código fornecido e sugerir melhorias em termos de:
-- Boas práticas de programação
-- Performance
-- Legibilidade
-- Segurança
-- Manutenibilidade
-
-Retorne apenas o código melhorado, sem explicações adicionais.`;
-
-export async function enhanceCode(code: string): Promise<string> {
-  const userPrompt = `Here is the code, I need you to return the improved code:\n\n${code}`;
-
-  try {
-    const response = await model.invoke([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt }
-    ]);
-    
-    return typeof response === 'object' && response !== null && 'choices' in response
-      ? (response as OpenAIResponse).choices?.[0]?.message?.content || ''
-      : String(response);
-  } catch (error) {
-    console.error("Erro ao melhorar o código:", error);
-    throw new Error("Falha ao processar a melhoria do código");
-  }
 }
+
+// Função principal do agente
+export async function chatAgent(initialMessage: string) {
+  const initialState: AgentState = {
+    messages: []
+  };
+
+  return await processMessage(initialState, initialMessage);
+}
+
