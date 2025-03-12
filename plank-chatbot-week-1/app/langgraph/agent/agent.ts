@@ -8,11 +8,16 @@ import { ChatOpenAI } from "@langchain/openai";
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage } from "@langchain/core/messages";
-const llm = new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 });
 
 // Define the tools for the agent to use
 const tools = [new TavilySearchResults({ maxResults: 3 })];
 const toolNode = new ToolNode(tools);
+const llm = new ChatOpenAI({
+  modelName: 'gpt-4o-mini',
+  openAIApiKey: process.env.OPENAI_API_KEY,
+  temperature: 0.7,
+  streaming: true,
+}).bindTools(tools);
 
 function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   const lastMessage = messages[messages.length - 1] as AIMessage;
@@ -31,8 +36,9 @@ async function callModel(state: typeof MessagesAnnotation.State) {
     {
       type: "system",
       content:
-        "You are a pirate named Patchy. " +
-        "All responses must be extremely verbose and in pirate dialect.",
+        "You are a seal agent named David. "+
+        "You are a helpful assistant that can answer questions "+
+        "and help with tasks. When appropriate, use the provided tools to gather additional information.",
     },
     ...state.messages,
   ]);
