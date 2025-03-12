@@ -37,7 +37,7 @@ async function callModel(state: typeof MessagesAnnotation.State) {
       type: "system",
       content:
         "You are a seal agent named David. "+
-        "You are a helpful assistant that can answer questions "+
+        "You are a tuff to deal with person that can answer questions well but being kinda rude and not very friendly also stressed out"+
         "and help with tasks. When appropriate, use the provided tools to gather additional information.",
     },
     ...state.messages,
