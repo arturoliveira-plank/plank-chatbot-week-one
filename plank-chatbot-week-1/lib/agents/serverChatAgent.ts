@@ -92,6 +92,7 @@ export class ServerChatAgent {
         chat_history: chatHistory,
         input: typeof lastMessage.content === 'string' ? lastMessage.content : '',
       });
+      console.log('Tool used with input:', lastMessage.content);
       return {
         messages: [{ role: 'assistant', content: response } as ChatCompletionMessageParam],
       };
@@ -109,7 +110,7 @@ export class ServerChatAgent {
 
   async processMessage(message: string, state: ChatState, conversationId?: string): Promise<ChatState> {
     const runId = conversationId || uuidv4();
-    
+
     // Convert ChatState to AgentState with BaseMessage types for LangGraph
     const initialState: AgentState = {
       messages: [
@@ -130,6 +131,12 @@ export class ServerChatAgent {
       },
     });
 
+    console.log('Metadata for processMessage:', {
+      conversationId: runId,
+      messageCount: state.messages.length + 1,
+      isNewConversation: state.messages.length === 0,
+    });
+
     return {
       messages: result.messages,
     };
@@ -137,15 +144,15 @@ export class ServerChatAgent {
 
   async *streamResponse(input: string, previousMessages: ChatCompletionMessageParam[] = [], conversationId?: string) {
     const runId = conversationId || `chat-${Date.now()}`;
-    const messageId = `${runId}-${Date.now()}`;
-  
+    const messageId = uuidv4();
+
     const initialState: AgentState = {
       messages: [
         ...previousMessages,
         { role: 'user', content: input } as ChatCompletionMessageParam,
       ],
     };
-  
+
     const stream = await this.graph.stream(initialState, {
       runName: "Chat Message",
       runId: messageId,
@@ -158,7 +165,15 @@ export class ServerChatAgent {
         timestamp: new Date().toISOString(),
       },
     });
-  
+
+    console.log('Metadata for streamResponse:', {
+      conversationId: runId,
+      messageId: messageId,
+      messageCount: previousMessages.length + 1,
+      isNewConversation: previousMessages.length === 0,
+      timestamp: new Date().toISOString(),
+    });
+
     for await (const chunk of stream) {
       console.log('Chunk bruto do graph.stream:', chunk);
       // Acesse os messages dentro do nó "agent"
