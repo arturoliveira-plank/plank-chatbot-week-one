@@ -50,14 +50,12 @@ export class ServerChatAgent {
     this.chain = RunnableSequence.from([prompt, this.model, new StringOutputParser()]);
   }
 
-  async processMessage(message: string, state: ChatState): Promise<ChatState> {
+  async processMessage(message: string, state: ChatState, conversationId?: string): Promise<ChatState> {
     // Format the chat history for the prompt
     const chatHistory = this.formatChatHistory(state.messages);
     
-    // Create a unique run ID for LangSmith tracing
-    const runId = state.messages.length > 0 ? 
-      `chat-${Date.now()}` : 
-      `chat-${Date.now()}-new`;
+    // Use the provided conversationId or generate a new one
+    const runId = conversationId || `chat-${Date.now()}`;
     
     // Invoke the chain with the chat history and new input
     const response = await this.chain.invoke(
@@ -75,6 +73,7 @@ export class ServerChatAgent {
         metadata: {
           conversationId: runId,
           messageCount: state.messages.length + 1,
+          isNewConversation: state.messages.length === 0,
         }
       }
     );
@@ -94,10 +93,11 @@ export class ServerChatAgent {
     const chatHistory = this.formatChatHistory(previousMessages);
     
     // Use the provided conversationId or generate a new one
-    const runId = conversationId || 
-      (previousMessages.length > 0 ? 
-        `chat-${Date.now()}` : 
-        `chat-${Date.now()}-new`);
+    // Make sure to use the same conversationId for all messages in the same conversation
+    const runId = conversationId || `chat-${Date.now()}`;
+    
+    // Generate a unique message ID for this specific message
+    const messageId = `${runId}-${Date.now()}`;
     
     // Stream the response with the chat history and new input
     return await this.chain.stream(
@@ -107,15 +107,17 @@ export class ServerChatAgent {
       },
       {
         // Add LangSmith tracing metadata
-        runName: "Chat Conversation",
-        runId: runId,
-        // If there are previous messages, tag this as a continuation
+        runName: "Chat Message",
+        runId: messageId,
+        // Add tags for filtering
         tags: previousMessages.length > 0 ? ["conversation", "continuation"] : ["conversation", "new"],
         // Add metadata about the conversation
         metadata: {
           conversationId: runId,
+          messageId: messageId,
           messageCount: previousMessages.length + 1,
           isNewConversation: previousMessages.length === 0,
+          timestamp: new Date().toISOString()
         }
       }
     );
@@ -143,7 +145,7 @@ export async function serverChatAgent(initialMessage: string) {
   return await processMessage(initialState, initialMessage);
 }
 
-async function processMessage(state: AgentState, message: string) {
+async function processMessage(state: AgentState, message: string, conversationId?: string) {
   try {
     const chatAgent = new ServerChatAgent();
     
@@ -156,7 +158,7 @@ async function processMessage(state: AgentState, message: string) {
     };
 
     // Process the message using ChatAgent
-    const newState = await chatAgent.processMessage(message, currentState);
+    const newState = await chatAgent.processMessage(message, currentState, conversationId);
     
     // Convert the response back to the format expected by the interface
     return {
