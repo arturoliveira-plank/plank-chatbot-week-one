@@ -1,26 +1,42 @@
-"use client";
-
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions.mjs";
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { Client } from 'langsmith';
+import {
+  StateGraph,
+  START,
+  StateGraphArgs,
+  CompiledStateGraph,
+} from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 
+// Define the tools
+const tools = [new TavilySearchResults({ maxResults: 3 })];
+const toolNode = new ToolNode(tools);
+
+const SYSTEM_PROMPT = `You are a helpful assistant named galo doido that can answer questions and help with tasks and.`;
+
+// Define the state interface
 interface AgentState {
-  messages: ChatCompletionMessageParam[];
+  messages: BaseMessage[];
 }
 
-interface ChatState {
-  messages: ChatCompletionMessageParam[];
-}
-
-const SYSTEM_PROMPT = `You are a helpful assistant that can answer questions and help with tasks.`;
+// Define the graph state
+const graphState: StateGraphArgs<AgentState>["channels"] = {
+  messages: {
+    value: (x: BaseMessage[], y: BaseMessage[]) => x.concat(y),
+    default: () => [],
+  },
+};
 
 export class ChatAgent {
   private model: ChatOpenAI;
   private client?: Client;
-  private chain: RunnableSequence;
+  private graph: CompiledStateGraph<AgentState, Partial<AgentState>, string>;
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
@@ -44,67 +60,83 @@ export class ChatAgent {
 
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', SYSTEM_PROMPT],
-      ['human', '{input}'],
+      ['placeholder', '{messages}'],
     ]);
 
-    this.chain = RunnableSequence.from([prompt, this.model, new StringOutputParser()]);
-  }
+    const chain = RunnableSequence.from([
+      prompt,
+      this.model,
+      new StringOutputParser()
+    ]);
 
-  async processMessage(message: string, state: ChatState): Promise<ChatState> {
-    const response = await this.chain.invoke({
-      input: message,
-    });
-
-    return {
-      messages: [
-        ...state.messages,
-        { role: 'user', content: message },
-        { role: 'assistant', content: response }
-      ]
+    // Define routing logic
+    const routeMessage = (state: AgentState): "tools" | "__end__" => {
+      const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+      if (lastMessage.tool_calls?.length) {
+        return "tools";
+      }
+      return "__end__";
     };
+
+    // Define the agent node
+    const agentNode = async (state: AgentState): Promise<Partial<AgentState>> => {
+      const response = await chain.invoke({
+        messages: state.messages,
+      });
+      return {
+        messages: [new AIMessage(response)]
+      };
+    };
+
+    // Build the graph
+    const graphBuilder = new StateGraph<AgentState>({ channels: graphState })
+      .addNode("agent", agentNode)
+      .addNode("tools", toolNode)
+      .addEdge(START, "agent")
+      .addEdge("tools", "agent")
+      .addConditionalEdges("agent", routeMessage);
+
+    this.graph = graphBuilder.compile();
   }
 
-  async streamResponse(input: string) {
-    return await this.chain.stream({
-      input,
-    });
-  }
-}
-
-async function processMessage(state: AgentState, message: string) {
-  try {
-    const chatAgent = new ChatAgent();
+  async processMessage(message: string): Promise<AgentState> {
+    const initialState: AgentState = {
+      messages: [new HumanMessage(message)]
+    };
     
-    // Convert the current state to the format expected by ChatAgent
-    const currentState = {
-      messages: state.messages.map((msg: ChatCompletionMessageParam) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content as string
-      }))
-    };
+    const result = await this.graph.invoke(initialState) as AgentState;
+    return result;
+  }
 
-    // Process the message using ChatAgent
-    const newState = await chatAgent.processMessage(message, currentState);
-    
-    // Convert the response back to the format expected by the interface
-    return {
-      messages: newState.messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })) as ChatCompletionMessageParam[]
+  async streamResponse(message: string) {
+    const initialState: AgentState = {
+      messages: [new HumanMessage(message)]
     };
-  } catch (error) {
-    console.error("Error processing message:", error);
-    throw error;
+    
+    const stream = await this.graph.stream(initialState);
+    return stream;
   }
 }
 
 // Main agent function
 export async function chatAgent(initialMessage: string) {
-  const initialState: AgentState = {
-    messages: []
+  const agent = new ChatAgent();
+  const result = await agent.processMessage(initialMessage);
+  
+  return {
+    messages: result.messages.map(msg => ({
+      role: msg instanceof HumanMessage ? "user" : "assistant",
+      content: typeof msg.content === 'string' ? msg.content : ''
+    })) as ChatCompletionMessageParam[]
   };
-
-  return await processMessage(initialState, initialMessage);
 }
 
+// Optional: Streaming version
+export async function* streamChatAgent(initialMessage: string) {
+  const agent = new ChatAgent();
+  const stream = await agent.streamResponse(initialMessage);
+  
+  for await (const chunk of stream) {
+    yield chunk;
+  }
+}

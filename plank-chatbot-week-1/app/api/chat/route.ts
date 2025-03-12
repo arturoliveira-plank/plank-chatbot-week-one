@@ -6,35 +6,42 @@ interface Message {
   content: string;
 }
 
-// Export a named function for the POST method
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json();
     const { messages, id } = json;
-    
-    // Ensure we have a valid ID
+
     if (!id) {
-      return NextResponse.json(
-        { error: 'Missing conversation ID' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing conversation ID' }, { status: 400 });
     }
-    
+
     const lastMessage = messages[messages.length - 1];
-    
-    // Get all previous messages except the last one (which is the current user message)
     const previousMessages = messages.slice(0, messages.length - 1);
 
     const chatAgent = new ServerChatAgent();
-    
-    // Pass the current message, previous messages history, and the conversation ID
-    const stream = await chatAgent.streamResponse(
-      lastMessage.content, 
-      previousMessages,
-      id // Pass the conversation ID from the frontend
-    );
+    const streamGenerator = chatAgent.streamResponse(lastMessage.content, previousMessages, id);
 
-    return new NextResponse(stream, {
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          console.log('Iniciando stream');
+          for await (const chunk of streamGenerator) {
+            console.log('Enviando chunk ao cliente:', chunk);
+            const encodedChunk = new TextEncoder().encode(
+              `data: ${JSON.stringify({ content: chunk })}\n\n`
+            );
+            controller.enqueue(encodedChunk);
+          }
+          console.log('Stream concluído');
+          controller.close();
+        } catch (error) {
+          console.error('Erro no stream:', error);
+          controller.error(error);
+        }
+      },
+    });
+
+    return new NextResponse(readableStream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -42,10 +49,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error in chat route:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('Erro na rota:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-} 
+}

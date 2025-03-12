@@ -4,6 +4,16 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { Client } from 'langsmith';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  StateGraph,
+  START,
+  StateGraphArgs,
+  CompiledStateGraph,
+} from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
+import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
+import { AIMessage, BaseMessage, HumanMessage } from "@langchain/core/messages";
 
 interface AgentState {
   messages: ChatCompletionMessageParam[];
@@ -13,12 +23,16 @@ interface ChatState {
   messages: ChatCompletionMessageParam[];
 }
 
-const SYSTEM_PROMPT = `You are a helpful assistant that can answer questions and help with tasks.`;
+// Define the tools
+const tools = [new TavilySearchResults({ maxResults: 3 })];
+const toolNode = new ToolNode(tools);
+
+const SYSTEM_PROMPT = `You are a helpful assistant that can answer questions and help with tasks. When appropriate, use the provided tools to gather additional information.`;
 
 export class ServerChatAgent {
-  private model: ChatOpenAI;
+  private model: ChatOpenAI; // Base ChatOpenAI type
   private client?: Client;
-  private chain: RunnableSequence;
+  private graph: CompiledStateGraph<AgentState, Partial<AgentState>, string>;
 
   constructor() {
     const apiKey = process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
@@ -26,6 +40,7 @@ export class ServerChatAgent {
       throw new Error('OPENAI_API_KEY is not set in environment variables');
     }
 
+    // Initialize the base model without binding tools yet
     this.model = new ChatOpenAI({
       modelName: 'gpt-4o-mini',
       openAIApiKey: apiKey,
@@ -40,96 +55,127 @@ export class ServerChatAgent {
       });
     }
 
-    // Create a dynamic prompt that will include conversation history
+    // Create the prompt
     const prompt = ChatPromptTemplate.fromMessages([
       ['system', SYSTEM_PROMPT],
-      ['placeholder', '{chat_history}'], // This will be replaced with actual chat history
+      ['placeholder', '{chat_history}'],
       ['human', '{input}'],
     ]);
 
-    this.chain = RunnableSequence.from([prompt, this.model, new StringOutputParser()]);
+    // Create the chain with the model bound to tools
+    const chain = RunnableSequence.from([
+      prompt,
+      this.model.bindTools(tools), // Bind tools here instead
+      new StringOutputParser(),
+    ]);
+
+    // Rest of the graph setup remains the same
+    const graphState: StateGraphArgs<AgentState>["channels"] = {
+      messages: {
+        value: (x: ChatCompletionMessageParam[], y: ChatCompletionMessageParam[]) => x.concat(y),
+        default: () => [],
+      },
+    };
+
+    const routeMessage = (state: AgentState): "tools" | "__end__" => {
+      const lastMessage = state.messages[state.messages.length - 1] as ChatCompletionMessageParam & { tool_calls?: any[] };
+      if (lastMessage.tool_calls?.length) {
+        return "tools";
+      }
+      return "__end__";
+    };
+
+    const agentNode = async (state: AgentState): Promise<Partial<AgentState>> => {
+      const chatHistory = this.formatChatHistory(state.messages);
+      const lastMessage = state.messages[state.messages.length - 1];
+      const response = await chain.invoke({
+        chat_history: chatHistory,
+        input: typeof lastMessage.content === 'string' ? lastMessage.content : '',
+      });
+      return {
+        messages: [{ role: 'assistant', content: response } as ChatCompletionMessageParam],
+      };
+    };
+
+    const graphBuilder = new StateGraph<AgentState>({ channels: graphState })
+      .addNode("agent", agentNode)
+      .addNode("tools", toolNode)
+      .addEdge(START, "agent")
+      .addEdge("tools", "agent")
+      .addConditionalEdges("agent", routeMessage);
+
+    this.graph = graphBuilder.compile();
   }
 
   async processMessage(message: string, state: ChatState, conversationId?: string): Promise<ChatState> {
-    // Format the chat history for the prompt
-    const chatHistory = this.formatChatHistory(state.messages);
+    const runId = conversationId || uuidv4();
     
-    // Use the provided conversationId or generate a new one
-    const runId = conversationId || `chat-${Date.now()}`;
-    
-    // Invoke the chain with the chat history and new input
-    const response = await this.chain.invoke(
-      {
-        chat_history: chatHistory,
-        input: message,
-      },
-      {
-        // Add LangSmith tracing metadata
-        runName: "Chat Conversation",
-        runId: runId,
-        // If there are previous messages, tag this as a continuation
-        tags: state.messages.length > 0 ? ["conversation", "continuation"] : ["conversation", "new"],
-        // Add metadata about the conversation
-        metadata: {
-          conversationId: runId,
-          messageCount: state.messages.length + 1,
-          isNewConversation: state.messages.length === 0,
-        }
-      }
-    );
-
-    // Return updated state with new messages
-    return {
+    // Convert ChatState to AgentState with BaseMessage types for LangGraph
+    const initialState: AgentState = {
       messages: [
         ...state.messages,
-        { role: 'user', content: message },
-        { role: 'assistant', content: response }
-      ]
+        { role: 'user', content: message } as ChatCompletionMessageParam,
+      ],
+    };
+
+    // Invoke the graph
+    const result = await this.graph.invoke(initialState, {
+      runName: "Chat Conversation",
+      runId: runId,
+      tags: state.messages.length > 0 ? ["conversation", "continuation"] : ["conversation", "new"],
+      metadata: {
+        conversationId: runId,
+        messageCount: state.messages.length + 1,
+        isNewConversation: state.messages.length === 0,
+      },
+    });
+
+    return {
+      messages: result.messages,
     };
   }
 
-  async streamResponse(input: string, previousMessages: ChatCompletionMessageParam[] = [], conversationId?: string) {
-    // Format the chat history for the prompt
-    const chatHistory = this.formatChatHistory(previousMessages);
-    
-    // Use the provided conversationId or generate a new one
-    // Make sure to use the same conversationId for all messages in the same conversation
+  async *streamResponse(input: string, previousMessages: ChatCompletionMessageParam[] = [], conversationId?: string) {
     const runId = conversationId || `chat-${Date.now()}`;
-    
-    // Generate a unique message ID for this specific message
     const messageId = `${runId}-${Date.now()}`;
-    
-    // Stream the response with the chat history and new input
-    return await this.chain.stream(
-      {
-        chat_history: chatHistory,
-        input: input,
+  
+    const initialState: AgentState = {
+      messages: [
+        ...previousMessages,
+        { role: 'user', content: input } as ChatCompletionMessageParam,
+      ],
+    };
+  
+    const stream = await this.graph.stream(initialState, {
+      runName: "Chat Message",
+      runId: messageId,
+      tags: previousMessages.length > 0 ? ["conversation", "continuation"] : ["conversation", "new"],
+      metadata: {
+        conversationId: runId,
+        messageId: messageId,
+        messageCount: previousMessages.length + 1,
+        isNewConversation: previousMessages.length === 0,
+        timestamp: new Date().toISOString(),
       },
-      {
-        // Add LangSmith tracing metadata
-        runName: "Chat Message",
-        runId: messageId,
-        // Add tags for filtering
-        tags: previousMessages.length > 0 ? ["conversation", "continuation"] : ["conversation", "new"],
-        // Add metadata about the conversation
-        metadata: {
-          conversationId: runId,
-          messageId: messageId,
-          messageCount: previousMessages.length + 1,
-          isNewConversation: previousMessages.length === 0,
-          timestamp: new Date().toISOString()
+    });
+  
+    for await (const chunk of stream) {
+      console.log('Chunk bruto do graph.stream:', chunk);
+      // Acesse os messages dentro do nó "agent"
+      if (chunk.agent && chunk.agent.messages && chunk.agent.messages.length > 0) {
+        const lastMessage = chunk.agent.messages[chunk.agent.messages.length - 1];
+        const content = typeof lastMessage.content === 'string' ? lastMessage.content : '';
+        console.log('Conteúdo extraído:', content); // Log para verificar o conteúdo
+        if (content) {
+          yield content;
         }
       }
-    );
+    }
   }
-
-  // Helper method to format chat history for the prompt
   private formatChatHistory(messages: ChatCompletionMessageParam[]): string {
     if (!messages || messages.length === 0) {
       return "";
     }
-    
-    // Convert messages to a format suitable for the prompt
     return messages.map(msg => {
       const role = msg.role === 'user' ? 'Human' : 'Assistant';
       return `${role}: ${msg.content}`;
@@ -138,18 +184,13 @@ export class ServerChatAgent {
 }
 
 export async function serverChatAgent(initialMessage: string) {
-  const initialState: AgentState = {
-    messages: []
-  };
-
+  const initialState: AgentState = { messages: [] };
   return await processMessage(initialState, initialMessage);
 }
 
 async function processMessage(state: AgentState, message: string, conversationId?: string) {
   try {
     const chatAgent = new ServerChatAgent();
-    
-    // Convert the current state to the format expected by ChatAgent
     const currentState = {
       messages: state.messages.map((msg: ChatCompletionMessageParam) => ({
         role: msg.role as 'user' | 'assistant',
@@ -159,8 +200,6 @@ async function processMessage(state: AgentState, message: string, conversationId
 
     // Process the message using ChatAgent
     const newState = await chatAgent.processMessage(message, currentState, conversationId);
-    
-    // Convert the response back to the format expected by the interface
     return {
       messages: newState.messages.map(msg => ({
         role: msg.role,
@@ -171,4 +210,4 @@ async function processMessage(state: AgentState, message: string, conversationId
     console.error("Error processing message:", error);
     throw error;
   }
-} 
+}
