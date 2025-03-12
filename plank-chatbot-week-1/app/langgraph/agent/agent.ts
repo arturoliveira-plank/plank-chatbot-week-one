@@ -15,17 +15,15 @@ class Planner {
   constructor(private agents: Agent[], private tools: ToolNode) {}
 
   async execute(state: typeof MessagesAnnotation.State) {
-    // Logic to delegate tasks among agents
     for (const agent of this.agents) {
       const result = await agent.performTask(state);
       if (this.shouldConclude(result)) {
-        break;
+        return result;
       }
     }
   }
 
   private shouldConclude(result: any): boolean {
-    // Determine when to conclude the execution flow
     return result === "__end__";
   }
 }
@@ -35,15 +33,15 @@ class Agent {
   constructor(private name: string, private task: Function) {}
 
   async performTask(state: typeof MessagesAnnotation.State) {
-    // Logic for the agent to perform its task with the common personality
     return await this.task(state);
   }
 }
 
 // Tooling Layer
-// Define the tools for the agent to use
-const tools = [new TavilySearchResults({ maxResults: 3 })];
+const tools = [new TavilySearchResults({ maxResults: 1 })]; // Reduced to 1 for simplicity
 const toolNode = new ToolNode(tools);
+
+// Initialize LLM with tools bound
 const llm = new ChatOpenAI({
   modelName: 'gpt-4o-mini',
   openAIApiKey: process.env.OPENAI_API_KEY,
@@ -53,79 +51,98 @@ const llm = new ChatOpenAI({
 
 function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   const lastMessage = messages[messages.length - 1] as AIMessage;
-
-  // If the LLM makes a tool call, then we route to the "tools" node
   if (lastMessage.tool_calls?.length) {
     return "tools";
   }
-  // Otherwise, we stop (reply to the user) using the special "__end__" node
   return "__end__";
 }
 
-// Define a common personality for all agents
+// Common personality for all agents
 const commonPersonality = 
   "You are a seal agent named David. " +
-  "You are a tough to deal with person that can answer questions well but being kinda rude and not very friendly also stressed out" +
+  "You are a tough to deal with person that can answer questions well but being kinda rude and not very friendly also stressed out " +
   "and help with tasks. When appropriate, use the provided tools to gather additional information.";
 
-// Define a function to fetch news
+// Mock fetchNews function (unchanged, still uses API)
 async function fetchNews() {
   try {
     const response = await axios.get('https://newsapi.org/v2/top-headlines', {
       params: {
         country: 'us',
-        apiKey: process.env.NEWS_API_KEY, // Ensure you have this environment variable set
+        apiKey: process.env.NEWS_API_KEY,
       },
     });
     return response.data.articles.map((article: any) => article.title).join('\n');
   } catch (error) {
     console.error('Error fetching news:', error);
-    return 'Unable to fetch news at the moment.';
+    return 'Unable to fetch news at the moment, deal with it.';
   }
 }
 
-// Define the function that calls the model with a specific personality for news
+// News agent
 async function callNewsAgent(state: typeof MessagesAnnotation.State) {
   const news = await fetchNews();
   const response = await llm.invoke([
     {
       type: "system",
-      content: commonPersonality + " Here are the latest news updates:\n" + news,
+      content: commonPersonality + " Here are the latest news updates, don’t waste my time:\n" + news,
     },
     ...state.messages,
   ]);
-
   return { messages: [response], timestamp: Date.now() };
 }
 
-// Define the function that calls the model with a specific personality
-async function callModelWithPersonality(state: typeof MessagesAnnotation.State) {
+// Weather agent using TavilySearchResults
+async function callWeatherAgent(state: typeof MessagesAnnotation.State) {
+  const lastMessage = state.messages[state.messages.length - 1];
+  
+
   const response = await llm.invoke([
     {
       type: "system",
-      content: commonPersonality,
+      content: commonPersonality + " Here’s the weather, stop bothering me:\n" + lastMessage,
     },
     ...state.messages,
   ]);
-
   return { messages: [response], timestamp: Date.now() };
 }
 
-// Instantiate the planner with agents and tools
-const agents = [
-  new Agent("ChatAgent", callModelWithPersonality),
-  new Agent("NewsAgent", callNewsAgent) // Use the news-specific function
-];
-const planner = new Planner(agents, toolNode);
+// General chat agent
+async function callModelWithPersonality(state: typeof MessagesAnnotation.State) {
+  const response = await llm.invoke([
+    { type: "system", content: commonPersonality },
+    ...state.messages,
+  ]);
+  return { messages: [response], timestamp: Date.now() };
+}
 
+// Improved agent selection logic
+async function agentNode(state: typeof MessagesAnnotation.State) {
+  const lastMessage = state.messages[state.messages.length - 1].content.toString().toLowerCase();
+  const agents = [
+    new Agent("ChatAgent", callModelWithPersonality),
+    new Agent("NewsAgent", callNewsAgent),
+    new Agent("WeatherAgent", callWeatherAgent),
+  ];
+  
+  if (lastMessage.includes("weather")) {
+    return await agents[2].performTask(state); // WeatherAgent
+  } else if (lastMessage.includes("news")) {
+    return await agents[1].performTask(state); // NewsAgent
+  } else {
+    return await agents[0].performTask(state); // ChatAgent
+  }
+}
+
+// Define the state graph
 const builder = new StateGraph(
   Annotation.Root({
     messages: MessagesAnnotation.spec["messages"],
     timestamp: Annotation<number>,
-  }),
+  })
 )
-  .addNode("agent", callModelWithPersonality)
-  .addEdge("__start__", "agent") // __start__ is a special name for the entrypoint
+  .addNode("agent", agentNode)
+  .addEdge(START, "agent")
   .addNode("tools", toolNode)
   .addEdge("tools", "agent")
   .addConditionalEdges("agent", shouldContinue);
