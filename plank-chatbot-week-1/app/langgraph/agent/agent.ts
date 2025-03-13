@@ -78,7 +78,7 @@ async function callNewsAgent(state: typeof MessagesAnnotation.State) {
   const response = await llm.invoke([
     {
       type: "system",
-      content: commonPersonality + " Here are the latest news updates, don't waste my time:\n" + news,
+      content: commonPersonality + " you only answer questions about the news with the following news with your personality: \n" + news,
     },
     ...state.messages,
   ]);
@@ -93,7 +93,7 @@ async function callWeatherAgent(state: typeof MessagesAnnotation.State) {
   const response = await llmWeather.invoke([
     {
       type: "system",
-      content: commonPersonality + " Here's the weather, stop bothering me:\n" + lastMessage,
+      content: commonPersonality + " you only answer questions about the weather with the following weather with your personality: \n" + lastMessage,
     },
     ...state.messages,
   ]);
