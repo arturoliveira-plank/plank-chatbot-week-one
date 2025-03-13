@@ -38,8 +38,8 @@ class Agent {
 }
 
 // Tooling Layer
-const tools = [new TavilySearchResults({ maxResults: 1 })]; // Reduced to 1 for simplicity
-const toolNode = new ToolNode(tools);
+const toolsWeather = [new TavilySearchResults({ maxResults: 1 })]; // Reduced to 1 for simplicity
+const toolNode = new ToolNode(toolsWeather);
 
 // Initialize LLM with tools bound
 const llm = new ChatOpenAI({
@@ -47,7 +47,14 @@ const llm = new ChatOpenAI({
   openAIApiKey: process.env.OPENAI_API_KEY,
   temperature: 0.7,
   streaming: true,
-}).bindTools(tools);
+});
+
+const llmWeather = new ChatOpenAI({
+  modelName: 'gpt-4o-mini',
+  openAIApiKey: process.env.OPENAI_API_KEY,
+  temperature: 0.7,
+  streaming: true,
+}).bindTools(toolsWeather);
 
 function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   const lastMessage = messages[messages.length - 1] as AIMessage;
@@ -69,7 +76,7 @@ async function fetchNews() {
     const response = await axios.get('https://newsapi.org/v2/top-headlines', {
       params: {
         country: 'us',
-        apiKey: process.env.NEWS_API_KEY,
+        apiKey: process.env.NEWSAPI_KEY,
       },
     });
     return response.data.articles.map((article: any) => article.title).join('\n');
@@ -97,7 +104,7 @@ async function callWeatherAgent(state: typeof MessagesAnnotation.State) {
   const lastMessage = state.messages[state.messages.length - 1];
   
 
-  const response = await llm.invoke([
+  const response = await llmWeather.invoke([
     {
       type: "system",
       content: commonPersonality + " Here's the weather, stop bothering me:\n" + lastMessage,
