@@ -139,6 +139,12 @@ export default function ChatInterface() {
             type="text"
             value={input}
             onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleCustomSubmit(e as any);
+              }
+            }}
             className="flex-1 p-3 rounded-lg bg-navy-800 border-2 border-navy-600 text-white placeholder-navy-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-navy-500 transition-all duration-300"
             placeholder="Enter your message, civilian..."
           />
