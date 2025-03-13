@@ -79,13 +79,25 @@ export default function ChatInterface() {
     handleSubmit(e); // Trigger the API call
   };
 
+  const clearHistory = () => {
+    setMessages([]);
+    setStreamingContent("");
+  };
+
   const displayMessages = streamingContent
     ? [...messages, { id: 'streaming', role: 'assistant', content: streamingContent } as Message]
     : messages;
 
+  useEffect(() => {
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }, [messages, streamingContent]);
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="chat-container flex-1 overflow-y-auto p-4 space-y-4">
         {displayMessages.map((message, i) => (
           <div
             key={message.id || i}
@@ -132,6 +144,13 @@ export default function ChatInterface() {
           </button>
         </div>
       </form>
+
+      <button
+        onClick={clearHistory}
+        className="px-3 py-1 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-full shadow-md hover:from-red-600 hover:to-pink-600 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-red-500"
+      >
+        Clear History
+      </button>
     </div>
   );
 }
