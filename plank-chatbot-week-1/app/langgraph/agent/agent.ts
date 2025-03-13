@@ -1,6 +1,6 @@
+// agent.ts
 import {
   StateGraph,
-  MessagesAnnotation,
   START,
   Annotation,
   END,
@@ -24,16 +24,20 @@ const AgentState = Annotation.Root({
     reducer: (x, y) => y ?? x ?? END,
     default: () => END,
   }),
+  lastResponse: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
 });
 
 const members = ["news", "weather", "chat"] as const;
 
 const supervisorPrompt =
   "You are a supervisor tasked with managing a conversation between the" +
-  " following workers: {members}. Given the following user request," +
+  " following workers: {members}. Given the following user request and conversation history," +
   " respond with the worker to act next. Each worker will perform a" +
-  " task and respond with their results and status. When finished," +
-  " respond with FINISH.";
+  " task and respond with their results and status. When the conversation is complete or" +
+  " the user's request has been satisfied, respond with FINISH.";
 
 const options = [END, ...members];
 
@@ -70,9 +74,7 @@ const formattedPrompt = await prompt.partial({
 const supervisorChain = formattedPrompt
   .pipe(llm.bindTools(
     [routingTool],
-    {
-      tool_choice: "route",
-    },
+    { tool_choice: "route" }
   ))
   .pipe((x) => x.tool_calls?.[0]?.args);
 
@@ -86,75 +88,56 @@ const commonPersonality =
 const weatherAgent = createReactAgent({
   llm,
   tools: toolsWeather,
-  stateModifier: new SystemMessage(commonPersonality + "You are weather agent. You may use the Tavily search engine to search the web for" +
-    "answer questions about the weather with the following weather with your personality:")
+  stateModifier: new SystemMessage(commonPersonality + "You are weather agent. You may use the Tavily search engine to search the web for weather information.")
 });
 
-const weatherNode = async (
-  state: typeof AgentState.State,
-  config?: RunnableConfig,
-) => {
+const weatherNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await weatherAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [
-      new HumanMessage({ content: lastMessage.content, name: "Weather Agent" }),
-    ],
+    messages: [new HumanMessage({ content: lastMessage.content })], // Removed name field
+    lastResponse: lastMessage.content,
   };
 };
 
 const newsAgent = createReactAgent({
   llm,
   tools: toolsWeather,
-  stateModifier: new SystemMessage(commonPersonality + "You are news agent. You may use the Tavily search engine to search the web for" +
-    "answer questions about the news with the following news with your personality:")
+  stateModifier: new SystemMessage(commonPersonality + "You are news agent. You may use the Tavily search engine to search the web for news information.")
 });
 
-const newsNode = async (
-  state: typeof AgentState.State,
-  config?: RunnableConfig,
-) => {
+const newsNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await newsAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [
-      new HumanMessage({ content: lastMessage.content, name: "News Agent" }),
-    ],
+    messages: [new HumanMessage({ content: lastMessage.content })], // Removed name field
+    lastResponse: lastMessage.content,
   };
 };
 
 const chatAgent = createReactAgent({
   llm,
   tools: toolsWeather,
-  stateModifier: new SystemMessage(commonPersonality + "You are chat agent." +
-    "answer questions about the chat with the following chat with your personality:")
+  stateModifier: new SystemMessage(commonPersonality + "You are chat agent. Keep responses concise and direct.")
 });
 
-const chatNode = async (
-  state: typeof AgentState.State,
-  config?: RunnableConfig,
-) => {
+const chatNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await chatAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [
-      new HumanMessage({ content: lastMessage.content, name: "Chat Agent" }),
-    ],
+    messages: [new HumanMessage({ content: lastMessage.content })], // Removed name field
+    lastResponse: lastMessage.content,
   };
 };
 
-// Define supervisor node with proper typing
-const supervisorNode = async (
-  state: typeof AgentState.State,
-  config?: RunnableConfig,
-) => {
+const supervisorNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await supervisorChain.invoke(state, config);
-  return {
-    next: result?.next ?? END,
-  };
+  if (state.lastResponse) {
+    return { next: END };
+  }
+  return { next: result?.next ?? END };
 };
 
-// Define the state graph
 const builder = new StateGraph(AgentState)
   .addNode("weather", weatherNode)
   .addNode("news", newsNode)
@@ -165,11 +148,7 @@ members.forEach((member) => {
   builder.addEdge(member, "supervisor");
 });
 
-builder.addConditionalEdges(
-  "supervisor",
-  (x: typeof AgentState.State) => x.next,
-);
-
+builder.addConditionalEdges("supervisor", (x: typeof AgentState.State) => x.next);
 builder.addEdge(START, "supervisor");
 
 export const graph = builder.compile();

@@ -1,5 +1,7 @@
+// app/api/chat/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { graph } from '@/app/langgraph/agent/agent';
+import { HumanMessage } from '@langchain/core/messages';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -18,45 +20,46 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1];
     const previousMessages = messages.slice(0, messages.length - 1);
 
-    // Format messages for the graph (ensure compatibility with LangGraph's expected state)
     const formattedMessages = [
       ...previousMessages.map((msg: Message) => ({
-        type: msg.role === 'user' ? 'human' : 'ai',
+        role: msg.role === 'user' ? 'user' : 'assistant',
         content: msg.content,
       })),
-      { type: 'human', content: lastMessage.content },
+      { role: 'user', content: lastMessage.content },
     ];
 
-    // Use the graph to stream responses
-    const streamGenerator = graph.stream(
-      { messages: formattedMessages },
-      { configurable: { conversationId: id } } // Optional: pass conversation ID if supported
+    const stream = await graph.stream(
+      { 
+        messages: [
+          new HumanMessage({
+            content:  lastMessage.content,
+          }),
+          //messages: formattedMessages
+        ] 
+      },
+      { 
+        configurable: {
+          conversationId: id,
+          maxIterations: 100,
+        }
+      }
     );
 
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
-          //console.log('Iniciando stream');
-          for await (const chunk of await streamGenerator) {
-            // Extract the content from the graph's output
-            const messages = chunk?.agent?.messages;
-            const lastMessageContent = messages ? messages[messages.length - 1]?.content : '';
-            //console.log('Contgentttttt', lastMessageContent);
-
-            // Split the content into words and send each word as a chunk
-            const words = lastMessageContent.split(' ');
-            for (const word of words) {
-              //console.log('Enviando palavra ao cliente:', word);
-              const encodedChunk = new TextEncoder().encode(
-                `${word} `
-              );
+          for await (const chunk of stream) {
+            // Check if the chunk has a valid response
+            const content = chunk?.chat?.lastResponse || 
+                          chunk?.weather?.lastResponse || 
+                          chunk?.news?.lastResponse || '';
+            if (content) {
+              const encodedChunk = new TextEncoder().encode(content);
               controller.enqueue(encodedChunk);
             }
           }
-          //console.log('Stream concluído');
           controller.close();
         } catch (error) {
-          //console.error('Erro no stream:', error);
           controller.error(error);
         }
       },
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    //console.error('Erro na rota:', error);
+    console.error('API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
