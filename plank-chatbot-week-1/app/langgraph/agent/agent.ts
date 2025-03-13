@@ -33,7 +33,9 @@ class Agent {
   constructor(private name: string, private task: Function) {}
 
   async performTask(state: typeof MessagesAnnotation.State) {
-    return await this.task(state);
+    const lastMessage = state.messages[state.messages.length - 1];
+    // Use the full state for context but prioritize the latest message
+    return await this.task({ messages: state.messages, lastMessage });
   }
 }
 
@@ -129,11 +131,15 @@ class Supervisor {
 
   async delegateTask(state: typeof MessagesAnnotation.State) {
     const lastMessage = state.messages[state.messages.length - 1].content.toString().toLowerCase();
+    console.log('Last Message:', lastMessage);
     if (lastMessage.includes("weather")) {
+      console.log('Calling WeatherAgent');
       return await this.agents[2].performTask(state); // WeatherAgent
     } else if (lastMessage.includes("news")) {
+      console.log('Calling NewsAgent');
       return await this.agents[1].performTask(state); // NewsAgent
     } else {
+      console.log('Calling ChatAgent');
       return await this.agents[0].performTask(state); // ChatAgent
     }
   }

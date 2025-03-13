@@ -36,27 +36,27 @@ export async function POST(req: NextRequest) {
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
-          console.log('Iniciando stream');
+          //console.log('Iniciando stream');
           for await (const chunk of await streamGenerator) {
             // Extract the content from the graph's output
             const messages = chunk?.agent?.messages;
             const lastMessageContent = messages ? messages[messages.length - 1]?.content : '';
-            console.log('Contgentttttt', lastMessageContent);
+            //console.log('Contgentttttt', lastMessageContent);
 
             // Split the content into words and send each word as a chunk
             const words = lastMessageContent.split(' ');
             for (const word of words) {
-              console.log('Enviando palavra ao cliente:', word);
+              //console.log('Enviando palavra ao cliente:', word);
               const encodedChunk = new TextEncoder().encode(
                 `${word} `
               );
               controller.enqueue(encodedChunk);
             }
           }
-          console.log('Stream concluído');
+          //console.log('Stream concluído');
           controller.close();
         } catch (error) {
-          console.error('Erro no stream:', error);
+          //console.error('Erro no stream:', error);
           controller.error(error);
         }
       },
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Erro na rota:', error);
+    //console.error('Erro na rota:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
