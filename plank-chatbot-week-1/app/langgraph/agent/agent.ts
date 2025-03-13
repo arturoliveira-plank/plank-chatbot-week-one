@@ -21,6 +21,7 @@ class Agent {
   }
 }
 
+const categories = "'news', 'weather', or 'chat'";
 // Tooling Layer
 const toolsWeather = [new TavilySearchResults({ maxResults: 1 })]; // Reduced to 1 for simplicity
 const toolNode = new ToolNode(toolsWeather);
@@ -63,7 +64,8 @@ async function fetchNews() {
         apiKey: process.env.NEWSAPI_KEY,
       },
     });
-    return response.data.articles.map((article: any) => article.title).join('\n');
+    const data = response.data as { articles: { title: string }[] };
+    return data.articles.map((article) => article.title).join('\n');
   } catch (error) {
     console.error('Error fetching news:', error);
     return 'Unable to fetch news at the moment, deal with it.';
@@ -107,22 +109,41 @@ async function callModelWithPersonality(state: typeof MessagesAnnotation.State) 
   return { messages: [response], timestamp: Date.now(), agentResponsible: 'assistant' };
 }
 
+// Function to determine message category
+async function determineMessageCategory(message: string) {
+  const response = await llm.invoke([
+    {
+      type: "system",
+      content: "You are a classifier. Analyze the message and respond with exactly one of these categories: " + categories + ". Only respond with the category name, nothing else."
+    },
+    {
+      type: "human",
+      content: message
+    }
+  ]);
+  return String(response.content).toLowerCase().trim();
+}
+
 // Supervisor Layer
 class Supervisor {
   constructor(private agents: Agent[]) {}
 
   async delegateTask(state: typeof MessagesAnnotation.State) {
-    const lastMessage = state.messages[state.messages.length - 1].content.toString().toLowerCase();
-    console.log('Last Message:', lastMessage);
-    if (lastMessage.includes("weather")) {
-      console.log('Calling WeatherAgent');
-      return await this.agents[2].performTask(state); // WeatherAgent
-    } else if (lastMessage.includes("news")) {
-      console.log('Calling NewsAgent');
-      return await this.agents[1].performTask(state); // NewsAgent
-    } else {
-      console.log('Calling ChatAgent');
-      return await this.agents[0].performTask(state); // ChatAgent
+    const lastMessage = state.messages[state.messages.length - 1].content.toString();
+    const category = await determineMessageCategory(lastMessage);
+    
+    console.log('Determined category:', category);
+    
+    switch (category) {
+      case 'weather':
+        console.log('Calling WeatherAgent');
+        return await this.agents[2].performTask(state); // WeatherAgent
+      case 'news':
+        console.log('Calling NewsAgent');
+        return await this.agents[1].performTask(state); // NewsAgent
+      default:
+        console.log('Calling ChatAgent');
+        return await this.agents[0].performTask(state); // ChatAgent
     }
   }
 }
