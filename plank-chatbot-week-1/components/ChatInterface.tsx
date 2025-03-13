@@ -38,7 +38,6 @@ export default function ChatInterface() {
     initialMessages: [],
     body: {
       id: chatId,
-      messages: messages, // Send full history
     },
     onResponse: async (response) => {
       if (!response.ok) {
