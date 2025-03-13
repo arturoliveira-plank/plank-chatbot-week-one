@@ -4,7 +4,6 @@ import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react';
 import { VoiceControls } from './VoiceControls';
 
-// Define the Message type
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -39,7 +38,7 @@ export default function ChatInterface() {
     initialMessages: [],
     body: {
       id: chatId,
-      messages: messages.filter((msg) => msg.role === 'user'), // Only send user messages
+      messages: messages, // Send full history
     },
     onResponse: async (response) => {
       if (!response.ok) {
@@ -56,7 +55,7 @@ export default function ChatInterface() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          const newMessage: Message = { id: `ai-${Date.now()}`, role: 'assistant' as const, content: accumulatedContent };
+          const newMessage: Message = { id: `ai-${Date.now()}`, role: 'assistant', content: accumulatedContent };
           setMessages((prev) => [...prev, newMessage]);
           setLastAssistantMessage(accumulatedContent);
           setStreamingContent("");

@@ -95,7 +95,7 @@ const weatherNode = async (state: typeof AgentState.State, config?: RunnableConf
   const result = await weatherAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [new HumanMessage({ content: lastMessage.content })], // Removed name field
+    messages: [...state.messages, new HumanMessage({ content: lastMessage.content })], // Append to history
     lastResponse: lastMessage.content,
   };
 };
@@ -110,7 +110,7 @@ const newsNode = async (state: typeof AgentState.State, config?: RunnableConfig)
   const result = await newsAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [new HumanMessage({ content: lastMessage.content })], // Removed name field
+    messages: [...state.messages, new HumanMessage({ content: lastMessage.content })], // Append to history
     lastResponse: lastMessage.content,
   };
 };
@@ -125,14 +125,14 @@ const chatNode = async (state: typeof AgentState.State, config?: RunnableConfig)
   const result = await chatAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [new HumanMessage({ content: lastMessage.content })], // Removed name field
+    messages: [...state.messages, new HumanMessage({ content: lastMessage.content })], // Append to history
     lastResponse: lastMessage.content,
   };
 };
 
 const supervisorNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await supervisorChain.invoke(state, config);
-  if (state.lastResponse) {
+  if (state.lastResponse && state.messages.length > 1) { // Check if there's a response and history exists
     return { next: END };
   }
   return { next: result?.next ?? END };

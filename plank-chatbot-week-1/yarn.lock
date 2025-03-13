@@ -1028,7 +1028,7 @@ agentkeepalive@^4.2.1:
   dependencies:
     humanize-ms "^1.2.1"
 
-ai@^3.1.12:
+ai@^3.4.33:
   version "3.4.33"
   resolved "https://registry.npmjs.org/ai/-/ai-3.4.33.tgz"
   integrity sha512-plBlrVZKwPoRTmM8+D1sJac9Bq8eaa2jiZlHLZIWekKWI1yMWYZvCCEezY9ASPwRhULYDJB2VhKOBUUeg3S5JQ==
