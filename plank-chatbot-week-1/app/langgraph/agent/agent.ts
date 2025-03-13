@@ -85,7 +85,7 @@ async function callNewsAgent(state: typeof MessagesAnnotation.State) {
   const response = await llm.invoke([
     {
       type: "system",
-      content: commonPersonality + " Here are the latest news updates, don’t waste my time:\n" + news,
+      content: commonPersonality + " Here are the latest news updates, don't waste my time:\n" + news,
     },
     ...state.messages,
   ]);
@@ -100,7 +100,7 @@ async function callWeatherAgent(state: typeof MessagesAnnotation.State) {
   const response = await llm.invoke([
     {
       type: "system",
-      content: commonPersonality + " Here’s the weather, stop bothering me:\n" + lastMessage,
+      content: commonPersonality + " Here's the weather, stop bothering me:\n" + lastMessage,
     },
     ...state.messages,
   ]);
@@ -116,22 +116,30 @@ async function callModelWithPersonality(state: typeof MessagesAnnotation.State) 
   return { messages: [response], timestamp: Date.now() };
 }
 
-// Improved agent selection logic
+// Supervisor Layer
+class Supervisor {
+  constructor(private agents: Agent[]) {}
+
+  async delegateTask(state: typeof MessagesAnnotation.State) {
+    const lastMessage = state.messages[state.messages.length - 1].content.toString().toLowerCase();
+    if (lastMessage.includes("weather")) {
+      return await this.agents[2].performTask(state); // WeatherAgent
+    } else if (lastMessage.includes("news")) {
+      return await this.agents[1].performTask(state); // NewsAgent
+    } else {
+      return await this.agents[0].performTask(state); // ChatAgent
+    }
+  }
+}
+
+// Improved agent selection logic using Supervisor
 async function agentNode(state: typeof MessagesAnnotation.State) {
-  const lastMessage = state.messages[state.messages.length - 1].content.toString().toLowerCase();
-  const agents = [
+  const supervisor = new Supervisor([
     new Agent("ChatAgent", callModelWithPersonality),
     new Agent("NewsAgent", callNewsAgent),
     new Agent("WeatherAgent", callWeatherAgent),
-  ];
-  
-  if (lastMessage.includes("weather")) {
-    return await agents[2].performTask(state); // WeatherAgent
-  } else if (lastMessage.includes("news")) {
-    return await agents[1].performTask(state); // NewsAgent
-  } else {
-    return await agents[0].performTask(state); // ChatAgent
-  }
+  ]);
+  return await supervisor.delegateTask(state);
 }
 
 // Define the state graph
