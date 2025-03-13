@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react';
 import { VoiceControls } from './VoiceControls';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Message {
   id: string;
@@ -11,6 +12,7 @@ interface Message {
 }
 
 export default function ChatInterface() {
+  const { user, loading } = useAuth();
   const [chatId] = useState(() => {
     if (typeof window !== 'undefined') {
       const savedId = localStorage.getItem('chatId');
@@ -101,6 +103,34 @@ export default function ChatInterface() {
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   }, [messages, streamingContent]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full bg-gradient-to-b from-navy-900 via-navy-800 to-navy-900 text-white items-center justify-center">
+        <div className="animate-pulse text-navy-300 font-mono">INITIALIZING SECURE CONNECTION...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col h-full bg-gradient-to-b from-navy-900 via-navy-800 to-navy-900 text-white items-center justify-center p-8">
+        <div className="text-center space-y-6">
+          <div className="text-2xl font-mono text-red-500 mb-4">CLASSIFIED ACCESS REQUIRED</div>
+          <div className="text-navy-300 font-mono mb-8">
+            This communication channel is restricted to authorized personnel only.
+            Please authenticate to proceed.
+          </div>
+          <a
+            href="/auth"
+            className="px-6 py-3 bg-navy-700 text-white rounded-lg hover:bg-navy-600 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-navy-500 font-mono text-sm inline-block"
+          >
+            AUTHORIZE ACCESS
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-navy-900 via-navy-800 to-navy-900 text-white">
