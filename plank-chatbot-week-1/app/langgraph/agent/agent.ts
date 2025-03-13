@@ -10,24 +10,6 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage } from "@langchain/core/messages";
 import axios from 'axios';
 
-// Planner Layer
-class Planner {
-  constructor(private agents: Agent[], private tools: ToolNode) {}
-
-  async execute(state: typeof MessagesAnnotation.State) {
-    for (const agent of this.agents) {
-      const result = await agent.performTask(state);
-      if (this.shouldConclude(result)) {
-        return result;
-      }
-    }
-  }
-
-  private shouldConclude(result: any): boolean {
-    return result === "__end__";
-  }
-}
-
 // Agents Layer
 class Agent {
   constructor(private name: string, private task: Function) {}
