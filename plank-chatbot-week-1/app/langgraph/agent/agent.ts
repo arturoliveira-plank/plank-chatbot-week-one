@@ -3,30 +3,58 @@ import {
   MessagesAnnotation,
   START,
   Annotation,
+  END,
 } from "@langchain/langgraph";
 import { ChatOpenAI } from "@langchain/openai";
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { AIMessage } from "@langchain/core/messages";
-import axios from 'axios';
+import { BaseMessage, HumanMessage } from "@langchain/core/messages";
+import { z } from "zod";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { MessagesPlaceholder } from "@langchain/core/prompts";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { SystemMessage } from "@langchain/core/messages";
+import { RunnableConfig } from "@langchain/core/runnables";
 
-// Agents Layer
-class Agent {
-  constructor(private name: string, private task: Function) {}
+const AgentState = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({
+    reducer: (x, y) => x.concat(y),
+    default: () => [],
+  }),
+  next: Annotation<string>({
+    reducer: (x, y) => y ?? x ?? END,
+    default: () => END,
+  }),
+});
 
-  async performTask(state: typeof MessagesAnnotation.State) {
-    const lastMessage = state.messages[state.messages.length - 1];
-    // Use the full state for context but prioritize the latest message
-    return await this.task({ messages: state.messages, lastMessage });
-  }
-}
+const members = ["news", "weather", "chat"] as const;
 
-const categories = "'news', 'weather', or 'chat'";
-// Tooling Layer
-const toolsWeather = [new TavilySearchResults({ maxResults: 1 })]; // Reduced to 1 for simplicity
-const toolNode = new ToolNode(toolsWeather);
+const supervisorPrompt =
+  "You are a supervisor tasked with managing a conversation between the" +
+  " following workers: {members}. Given the following user request," +
+  " respond with the worker to act next. Each worker will perform a" +
+  " task and respond with their results and status. When finished," +
+  " respond with FINISH.";
 
-// Initialize LLM with tools bound
+const options = [END, ...members];
+
+const routingTool = {
+  name: "route",
+  description: "Select the next role.",
+  schema: z.object({
+    next: z.enum([END, ...members]),
+  }),
+};
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", supervisorPrompt],
+  new MessagesPlaceholder("messages"),
+  [
+    "human",
+    "Given the conversation above, who should act next?" +
+    " Or should we FINISH? Select one of: {options}",
+  ],
+]);
+
 const llm = new ChatOpenAI({
   modelName: 'gpt-4o-mini',
   openAIApiKey: process.env.OPENAI_API_KEY,
@@ -34,141 +62,114 @@ const llm = new ChatOpenAI({
   streaming: true,
 });
 
-const llmWeather = new ChatOpenAI({
-  modelName: 'gpt-4o-mini',
-  openAIApiKey: process.env.OPENAI_API_KEY,
-  temperature: 0.7,
-  streaming: true,
-}).bindTools(toolsWeather);
+const formattedPrompt = await prompt.partial({
+  options: options.join(", "),
+  members: members.join(", "),
+});
 
-function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
-  const lastMessage = messages[messages.length - 1] as AIMessage;
-  if (lastMessage.tool_calls?.length) {
-    return "tools";
-  }
-  return "__end__";
-}
+const supervisorChain = formattedPrompt
+  .pipe(llm.bindTools(
+    [routingTool],
+    {
+      tool_choice: "route",
+    },
+  ))
+  .pipe((x) => x.tool_calls?.[0]?.args);
 
-// Common personality for all agents
-const commonPersonality = 
+const toolsWeather = [new TavilySearchResults({ maxResults: 1 })];
+
+const commonPersonality =
   "You are a seal agent named David. " +
   "You are a tough to deal with person that can answer questions well but being kinda rude and not very friendly also stressed out " +
   "and help with tasks. When appropriate, use the provided tools to gather additional information.";
 
-// Mock fetchNews function (unchanged, still uses API)
-async function fetchNews() {
-  try {
-    const response = await axios.get('https://newsapi.org/v2/top-headlines', {
-      params: {
-        country: 'us',
-        apiKey: process.env.NEWSAPI_KEY,
-      },
-    });
-    const data = response.data as { articles: { title: string }[] };
-    return data.articles.map((article) => article.title).join('\n');
-  } catch (error) {
-    console.error('Error fetching news:', error);
-    return 'Unable to fetch news at the moment, deal with it.';
-  }
-}
+const weatherAgent = createReactAgent({
+  llm,
+  tools: toolsWeather,
+  stateModifier: new SystemMessage(commonPersonality + "You are weather agent. You may use the Tavily search engine to search the web for" +
+    "answer questions about the weather with the following weather with your personality:")
+});
 
-// News agent
-async function callNewsAgent(state: typeof MessagesAnnotation.State) {
-  const news = await fetchNews();
-  const response = await llm.invoke([
-    {
-      type: "system",
-      content: commonPersonality + " you only answer questions about the news with the following news with your personality: \n" + news,
-    },
-    ...state.messages,
-  ]);
-  return { messages: [response], timestamp: Date.now(), agentResponsible: 'news' };
-}
+const weatherNode = async (
+  state: typeof AgentState.State,
+  config?: RunnableConfig,
+) => {
+  const result = await weatherAgent.invoke(state, config);
+  const lastMessage = result.messages[result.messages.length - 1];
+  return {
+    messages: [
+      new HumanMessage({ content: lastMessage.content, name: "Weather Agent" }),
+    ],
+  };
+};
 
-// Weather agent using TavilySearchResults
-async function callWeatherAgent(state: typeof MessagesAnnotation.State) {
-  const lastMessage = state.messages[state.messages.length - 1];
-  
+const newsAgent = createReactAgent({
+  llm,
+  tools: toolsWeather,
+  stateModifier: new SystemMessage(commonPersonality + "You are news agent. You may use the Tavily search engine to search the web for" +
+    "answer questions about the news with the following news with your personality:")
+});
 
-  const response = await llmWeather.invoke([
-    {
-      type: "system",
-      content: commonPersonality + " you only answer questions about the weather with the following weather with your personality: \n" + lastMessage,
-    },
-    ...state.messages,
-  ]);
-  return { messages: [response], timestamp: Date.now(), agentResponsible: 'weather' };
-}
+const newsNode = async (
+  state: typeof AgentState.State,
+  config?: RunnableConfig,
+) => {
+  const result = await newsAgent.invoke(state, config);
+  const lastMessage = result.messages[result.messages.length - 1];
+  return {
+    messages: [
+      new HumanMessage({ content: lastMessage.content, name: "News Agent" }),
+    ],
+  };
+};
 
-// General chat agent
-async function callModelWithPersonality(state: typeof MessagesAnnotation.State) {
-  const response = await llm.invoke([
-    { type: "system", content: commonPersonality },
-    ...state.messages,
-  ]);
-  return { messages: [response], timestamp: Date.now(), agentResponsible: 'assistant' };
-}
+const chatAgent = createReactAgent({
+  llm,
+  tools: toolsWeather,
+  stateModifier: new SystemMessage(commonPersonality + "You are chat agent." +
+    "answer questions about the chat with the following chat with your personality:")
+});
 
-// Function to determine message category
-async function determineMessageCategory(message: string) {
-  const response = await llm.invoke([
-    {
-      type: "system",
-      content: "You are a classifier. Analyze the message and respond with exactly one of these categories: " + categories + ". Only respond with the category name, nothing else."
-    },
-    {
-      type: "human",
-      content: message
-    }
-  ]);
-  return String(response.content).toLowerCase().trim();
-}
+const chatNode = async (
+  state: typeof AgentState.State,
+  config?: RunnableConfig,
+) => {
+  const result = await chatAgent.invoke(state, config);
+  const lastMessage = result.messages[result.messages.length - 1];
+  return {
+    messages: [
+      new HumanMessage({ content: lastMessage.content, name: "Chat Agent" }),
+    ],
+  };
+};
 
-// Supervisor Layer
-class Supervisor {
-  constructor(private agents: Agent[]) {}
-
-  async delegateTask(state: typeof MessagesAnnotation.State) {
-    const lastMessage = state.messages[state.messages.length - 1].content.toString();
-    const category = await determineMessageCategory(lastMessage);
-    
-    console.log('Determined category:', category);
-    
-    switch (category) {
-      case 'weather':
-        console.log('Calling WeatherAgent');
-        return await this.agents[2].performTask(state); // WeatherAgent
-      case 'news':
-        console.log('Calling NewsAgent');
-        return await this.agents[1].performTask(state); // NewsAgent
-      default:
-        console.log('Calling ChatAgent');
-        return await this.agents[0].performTask(state); // ChatAgent
-    }
-  }
-}
-
-// Improved agent selection logic using Supervisor
-async function agentNode(state: typeof MessagesAnnotation.State) {
-  const supervisor = new Supervisor([
-    new Agent("ChatAgent", callModelWithPersonality),
-    new Agent("NewsAgent", callNewsAgent),
-    new Agent("WeatherAgent", callWeatherAgent),
-  ]);
-  return await supervisor.delegateTask(state);
-}
+// Define supervisor node with proper typing
+const supervisorNode = async (
+  state: typeof AgentState.State,
+  config?: RunnableConfig,
+) => {
+  const result = await supervisorChain.invoke(state, config);
+  return {
+    next: result?.next ?? END,
+  };
+};
 
 // Define the state graph
-const builder = new StateGraph(
-  Annotation.Root({
-    messages: MessagesAnnotation.spec["messages"],
-    timestamp: Annotation<number>,
-  })
-)
-  .addNode("agent", agentNode)
-  .addEdge(START, "agent")
-  .addNode("tools", toolNode)
-  .addEdge("tools", "agent")
-  .addConditionalEdges("agent", shouldContinue);
+const builder = new StateGraph(AgentState)
+  .addNode("weather", weatherNode)
+  .addNode("news", newsNode)
+  .addNode("chat", chatNode)
+  .addNode("supervisor", supervisorNode);
+
+members.forEach((member) => {
+  builder.addEdge(member, "supervisor");
+});
+
+builder.addConditionalEdges(
+  "supervisor",
+  (x: typeof AgentState.State) => x.next,
+);
+
+builder.addEdge(START, "supervisor");
 
 export const graph = builder.compile();
