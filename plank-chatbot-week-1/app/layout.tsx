@@ -6,6 +6,8 @@ import { GithubIcon } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { AuthButton } from "@/components/AuthButton";
+import type { Metadata } from "next";
+
 const publicSans = Public_Sans({ subsets: ["latin"] });
 
 const Logo = () => (
@@ -21,6 +23,11 @@ const Logo = () => (
     />
   </svg>
 );
+
+export const metadata: Metadata = {
+  title: "David - SEAL Agent Chatbot",
+  description: "Chat with David, a tough marine seal agent who can help you with tasks while maintaining his strict military demeanor.",
+};
 
 export default function RootLayout({
   children,
@@ -75,7 +82,7 @@ export default function RootLayout({
               </div>
             </div>
           </div>
-          <Toaster />
+          <Toaster position="top-center" richColors />
         </NuqsAdapter>
       </body>
     </html>
