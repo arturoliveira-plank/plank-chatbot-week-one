@@ -98,7 +98,7 @@ async function callNewsAgent(state: typeof MessagesAnnotation.State) {
     },
     ...state.messages,
   ]);
-  return { messages: [response], timestamp: Date.now() };
+  return { messages: [response], timestamp: Date.now(), agentResponsible: 'news' };
 }
 
 // Weather agent using TavilySearchResults
@@ -113,7 +113,7 @@ async function callWeatherAgent(state: typeof MessagesAnnotation.State) {
     },
     ...state.messages,
   ]);
-  return { messages: [response], timestamp: Date.now() };
+  return { messages: [response], timestamp: Date.now(), agentResponsible: 'weather' };
 }
 
 // General chat agent
@@ -122,7 +122,7 @@ async function callModelWithPersonality(state: typeof MessagesAnnotation.State) 
     { type: "system", content: commonPersonality },
     ...state.messages,
   ]);
-  return { messages: [response], timestamp: Date.now() };
+  return { messages: [response], timestamp: Date.now(), agentResponsible: 'assistant' };
 }
 
 // Supervisor Layer

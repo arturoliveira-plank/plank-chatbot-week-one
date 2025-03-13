@@ -13,14 +13,48 @@ const publicSans = Public_Sans({ subsets: ["latin"] });
 const Logo = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    viewBox="0 0 240 41"
+    viewBox="0 0 100 40"
     className="h-8 flex-shrink-0 self-start"
   >
+    {/* Trident base */}
     <path
       fill="currentColor"
-      d="M61.514 11.157a3.943 3.943 0 0 0-2.806 1.158l-3.018 3.01a3.951 3.951 0 0 0-1.147 3.095l.019.191a3.894 3.894 0 0 0 1.128 2.314c.435.434.914.709 1.496.9.03.175.047.352.047.53 0 .797-.31 1.546-.874 2.107l-.186.186c-1.008-.344-1.848-.847-2.607-1.604a6.888 6.888 0 0 1-1.927-3.67l-.034-.193-.153.124a3.675 3.675 0 0 0-.294.265l-3.018 3.01a3.957 3.957 0 0 0 2.807 6.757 3.959 3.959 0 0 0 2.806-1.158l3.019-3.01a3.958 3.958 0 0 0 0-5.599 3.926 3.926 0 0 0-1.462-.92 3.252 3.252 0 0 1 .924-2.855 6.883 6.883 0 0 1 2.664 1.656 6.906 6.906 0 0 1 1.926 3.67l.035.193.153-.124c.104-.083.202-.173.296-.267l3.018-3.01a3.956 3.956 0 0 0-2.808-6.756h-.004Z"
+      d="M45 25L50 35L55 25L50 15L45 25Z"
+      className="text-navy-400"
     />
+    {/* Trident prongs */}
+    <path
+      fill="currentColor"
+      d="M50 5L45 15L50 25L55 15L50 5Z"
+      className="text-navy-400"
+    />
+    <path
+      fill="currentColor"
+      d="M35 15L40 25L45 15L40 5L35 15Z"
+      className="text-navy-400"
+    />
+    <path
+      fill="currentColor"
+      d="M65 15L60 25L65 35L70 25L65 15Z"
+      className="text-navy-400"
+    />
+    {/* Circle background */}
+    <circle
+      cx="50"
+      cy="20"
+      r="18"
+      className="text-navy-600"
+      fill="currentColor"
+    />
+    {/* Text */}
+    <text
+      x="50"
+      y="35"
+      textAnchor="middle"
+      className="text-navy-300 font-mono text-xs font-bold fill-current tracking-wider"
+    >
+      NAVY SEALS
+    </text>
   </svg>
 );
 
