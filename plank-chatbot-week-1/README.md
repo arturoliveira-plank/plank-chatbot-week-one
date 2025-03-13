@@ -16,4 +16,4 @@ bun dev
 
 deploy 
 
- https://plank-chatbot-week-one-mkhm-k72bbtr07-arturs-projects-208a974c.vercel.app/
+https://chatbot-week-one.vercel.app/
