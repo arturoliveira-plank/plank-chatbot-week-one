@@ -157,7 +157,7 @@ export default function ChatInterface() {
 
       <button
         onClick={clearHistory}
-        className="px-3 py-1 bg-gradient-to-r from-navy-700 to-navy-800 text-white rounded-full shadow-md hover:from-navy-600 hover:to-navy-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-navy-500 font-mono text-xs mx-auto mb-4"
+        className="px-3 py-1 bg-gradient-to-r from-navy-700 to-navy-800 text-white rounded-full shadow-md hover:from-red-600 hover:to-red-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-navy-500 font-mono text-xs mx-auto mb-4"  
       >
         CLEAR TRANSMISSION LOG
       </button>
