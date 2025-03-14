@@ -216,11 +216,17 @@ export default function ChatInterface() {
               } shadow-lg hover:shadow-xl transition-all duration-300`}
             >
               <div className="whitespace-pre-wrap font-mono text-sm">
-                {removeAgentPrefix(message.content)}
+                {removeAgentPrefix(message.content).split(/(\*\*.*?\*\*)/).map((part, index) => {
+                  if (part.startsWith('**') && part.endsWith('**')) {
+                    // Remove the ** and make the text bold
+                    return <span key={index} className="font-bold">{part.slice(2, -2)}</span>;
+                  }
+                  return part;
+                })}
                 {message.id === 'streaming' && (
                   <span className="inline-block animate-pulse text-navy-300">▊</span>
                 )}
-              </div>
+              </div> 
               <div className="text-xs text-navy-300 mt-2 font-mono">
                 {message.role === 'user' ? 'CIVILIAN' : getAgentType(message.content)}
               </div>
