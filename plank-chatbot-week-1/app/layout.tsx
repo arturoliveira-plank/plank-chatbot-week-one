@@ -72,7 +72,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <title>Chat App</title>
-        <link rel="shortcut icon" href="/images/favicon.ico" />
+        <link rel="shortcut icon" href="/images/favicon.svg" />
         <meta
           name="description"
           content="A modern chat application built with Next.js and Supabase"
