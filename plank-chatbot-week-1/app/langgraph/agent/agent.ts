@@ -31,12 +31,15 @@ const AgentState = Annotation.Root({
 });
 
 const members = ["news", "weather", "chat", "summary"] as const;
+//const members = ["news", "weather", "chat"] as const;
 
 const supervisorPrompt =
   "You are a supervisor tasked with managing a conversation between the" +
   " following workers: {members}. Given the following user request and conversation history," +
   " respond with the worker to act next. Each worker will perform a" +
-  " task and respond with their results and status. When the conversation is complete or" +
+  " task and respond with their results and status. " +
+  " the summary agent will only be used when the user clearly asks for mission debrief " +
+  "When the conversation is complete or" +
   " the user's request has been satisfied, respond with FINISH.";
 
 const options = [END, ...members];
@@ -88,7 +91,8 @@ const commonPersonality =
 const weatherAgent = createReactAgent({
   llm,
   tools: toolsWeather,
-  stateModifier: new SystemMessage(commonPersonality + "You are weather agent. You may use the Tavily search engine to search the web for weather information.")
+  stateModifier: new SystemMessage(commonPersonality + "You are weather agent. You may use the Tavily search engine to search the web for weather information. "+
+    "Be direct and maintain the tough SEAL agent persona.")
 });
 
 const weatherNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
@@ -104,7 +108,9 @@ const weatherNode = async (state: typeof AgentState.State, config?: RunnableConf
 const newsAgent = createReactAgent({
   llm,
   tools: toolsWeather,
-  stateModifier: new SystemMessage(commonPersonality + "You are news agent. You may use the Tavily search engine to search the web for news information.")
+  stateModifier: new SystemMessage(commonPersonality + "You are news agent. You may use the Tavily search engine to search the web for news information. "+
+    "Be direct and maintain the tough SEAL agent persona." +
+    "You need to send all the news to the user in a concise and direct manner.")
 });
 
 const newsNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
@@ -120,7 +126,8 @@ const newsNode = async (state: typeof AgentState.State, config?: RunnableConfig)
 const chatAgent = createReactAgent({
   llm,
   tools: toolsWeather,
-  stateModifier: new SystemMessage(commonPersonality + "You are chat agent. Keep responses concise and direct.")
+  stateModifier: new SystemMessage(commonPersonality + "You are chat agent. Keep responses concise and direct. "+
+    "Be direct and maintain the tough SEAL agent persona.")
 });
 
 const chatNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {

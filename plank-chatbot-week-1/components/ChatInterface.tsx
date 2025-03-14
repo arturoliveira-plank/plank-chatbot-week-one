@@ -35,6 +35,9 @@ export default function ChatInterface() {
   const [lastAssistantMessage, setLastAssistantMessage] = useState<string>("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState<string>("");
+  const [displayedSummary, setDisplayedSummary] = useState<string>("");
+  const [isTypingSummary, setIsTypingSummary] = useState(false);
+  const [showSummary, setShowSummary] = useState(true);
 
   const { input, handleInputChange, handleSubmit, isLoading } = useChat({
     id: chatId,
@@ -73,6 +76,31 @@ export default function ChatInterface() {
     },
   });
 
+  useEffect(() => {
+    if (summary && !isTypingSummary) {
+      setIsTypingSummary(true);
+      let currentIndex = 0;
+      const interval = setInterval(() => {
+        if (currentIndex < summary.length) {
+          setDisplayedSummary(prev => prev + summary[currentIndex]);
+          currentIndex++;
+        } else {
+          clearInterval(interval);
+          setIsTypingSummary(false);
+        }
+      }, 30);
+
+      return () => clearInterval(interval);
+    }
+  }, [summary]);
+
+  useEffect(() => {
+    const chatContainer = document.querySelector('.chat-container');
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  }, [messages, streamingContent, displayedSummary]);
+
   const handleCustomSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input || isLoading) return;
@@ -95,12 +123,21 @@ export default function ChatInterface() {
 
     setIsSummarizing(true);
     setSummary("");
+    setDisplayedSummary("");
+    setShowSummary(true);
 
     try {
-      const response = await fetch('/api/summary', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({
+          id: chatId,
+          messages: [
+            ...messages,
+            { role: 'user', content: 'Please provide a mission debrief of our conversation.' }
+          ],
+          isSummary: true
+        }),
       });
 
       if (!response.ok) throw new Error('Summary request failed');
@@ -126,23 +163,22 @@ export default function ChatInterface() {
     }
   };
 
+  const handleCloseSummary = () => {
+    setShowSummary(false);
+  };
+
   const clearHistory = () => {
     setMessages([]);
     setStreamingContent("");
     setLastAssistantMessage("");
     setSummary("");
+    setDisplayedSummary("");
+    setShowSummary(true);
   };
 
   const displayMessages = streamingContent
     ? [...messages, { id: 'streaming', role: 'assistant', content: streamingContent } as Message]
     : messages;
-
-  useEffect(() => {
-    const chatContainer = document.querySelector('.chat-container');
-    if (chatContainer) {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-  }, [messages, streamingContent]);
 
   if (loading) {
     return (
@@ -233,12 +269,29 @@ export default function ChatInterface() {
             </div>
           </div>
         ))}
-        {summary && (
+        {summary && showSummary && (
           <div className="flex justify-center">
-            <div className="max-w-[80%] p-4 rounded-lg border-2 bg-navy-700 border-navy-500 shadow-lg">
+            <div className="max-w-[80%] p-4 rounded-lg border-2 bg-navy-700 border-navy-500 shadow-lg relative">
+              <button
+                onClick={handleCloseSummary}
+                className="absolute top-2 right-2 text-navy-300 hover:text-white transition-colors duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
               <div className="font-mono text-sm whitespace-pre-wrap">
                 <div className="text-navy-300 mb-2">MISSION DEBRIEF:</div>
-                {summary}
+                {displayedSummary.split(/(\*\*.*?\*\*)/).map((part, index) => {
+                  if (part.startsWith('**') && part.endsWith('**')) {
+                    // Remove the ** and make the text bold
+                    return <span key={index} className="font-bold">{part.slice(2, -2)}</span>;
+                  }
+                  return part;
+                })}
+                {isTypingSummary && (
+                  <span className="inline-block animate-pulse text-navy-300">▊</span>
+                )}
               </div>
             </div>
           </div>
