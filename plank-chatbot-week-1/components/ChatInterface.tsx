@@ -204,7 +204,7 @@ Status: Ready for deployment. What's your request, civilian?`
         <div className="animate-pulse text-navy-300 font-mono">INITIALIZING SECURE CONNECTION...</div>
       </div>
     );
-  }
+  } 
 
   if (!user) {
     return (
