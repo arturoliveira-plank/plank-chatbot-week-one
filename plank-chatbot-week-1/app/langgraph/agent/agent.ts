@@ -30,7 +30,7 @@ const AgentState = Annotation.Root({
   }),
 });
 
-const members = ["news", "weather", "chat"] as const;
+const members = ["news", "weather", "chat", "summary"] as const;
 
 const supervisorPrompt =
   "You are a supervisor tasked with managing a conversation between the" +
@@ -93,6 +93,7 @@ const weatherAgent = createReactAgent({
 
 const weatherNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await weatherAgent.invoke(state, config);
+  console.log("Using weather agent");
   const lastMessage = result.messages[result.messages.length - 1];
   return {
     messages: [...state.messages, new HumanMessage({ content: lastMessage.content })], // Append to history
@@ -107,6 +108,7 @@ const newsAgent = createReactAgent({
 });
 
 const newsNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
+  console.log("Using news agent");
   const result = await newsAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
@@ -122,10 +124,27 @@ const chatAgent = createReactAgent({
 });
 
 const chatNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
+  console.log("Using chat agent");
   const result = await chatAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
     messages: [...state.messages, new HumanMessage({ content: lastMessage.content })], // Append to history
+    lastResponse: lastMessage.content,
+  };
+};
+
+const summaryAgent = createReactAgent({
+  llm,
+  tools: [],
+  stateModifier: new SystemMessage(commonPersonality + "You are a summary agent. Your task is to provide concise, bullet-point summaries of conversations. Focus on key points, decisions, and outcomes. Be direct and maintain the tough SEAL agent persona.")
+});
+
+const summaryNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
+  console.log("Using summary agent");
+  const result = await summaryAgent.invoke(state, config);
+  const lastMessage = result.messages[result.messages.length - 1];
+  return {
+    messages: [...state.messages],
     lastResponse: lastMessage.content,
   };
 };
@@ -142,6 +161,7 @@ const builder = new StateGraph(AgentState)
   .addNode("weather", weatherNode)
   .addNode("news", newsNode)
   .addNode("chat", chatNode)
+  .addNode("summary", summaryNode)
   .addNode("supervisor", supervisorNode);
 
 members.forEach((member) => {

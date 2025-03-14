@@ -33,6 +33,8 @@ export default function ChatInterface() {
   const [streamingContent, setStreamingContent] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [lastAssistantMessage, setLastAssistantMessage] = useState<string>("");
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string>("");
 
   const { input, handleInputChange, handleSubmit, isLoading } = useChat({
     id: chatId,
@@ -87,10 +89,47 @@ export default function ChatInterface() {
     handleInputChange(inputEvent);
   };
 
+  const handleSummarize = async () => {
+    if (messages.length === 0 || isSummarizing) return;
+
+    setIsSummarizing(true);
+    setSummary("");
+
+    try {
+      const response = await fetch('/api/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages }),
+      });
+
+      if (!response.ok) throw new Error('Summary request failed');
+
+      const reader = response.body?.getReader();
+      if (!reader) return;
+
+      let accumulatedContent = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          setSummary(accumulatedContent);
+          break;
+        }
+        const text = new TextDecoder().decode(value);
+        accumulatedContent += text;
+        setSummary(accumulatedContent);
+      }
+    } catch (error) {
+      console.error('Summary error:', error);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   const clearHistory = () => {
     setMessages([]);
     setStreamingContent("");
     setLastAssistantMessage("");
+    setSummary("");
   };
 
   const displayMessages = streamingContent
@@ -159,6 +198,16 @@ export default function ChatInterface() {
             </div>
           </div>
         ))}
+        {summary && (
+          <div className="flex justify-center">
+            <div className="max-w-[80%] p-4 rounded-lg border-2 bg-navy-700 border-navy-500 shadow-lg">
+              <div className="font-mono text-sm whitespace-pre-wrap">
+                <div className="text-navy-300 mb-2">MISSION DEBRIEF:</div>
+                {summary}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleCustomSubmit} className="p-4 bg-navy-900 border-t-2 border-navy-700">
@@ -189,12 +238,23 @@ export default function ChatInterface() {
         </div>
       </form>
 
-      <button
-        onClick={clearHistory}
-        className="px-3 py-1 bg-gradient-to-r from-navy-700 to-navy-800 text-white rounded-full shadow-md hover:from-red-600 hover:to-red-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-navy-500 font-mono text-xs mx-auto mb-4"  
-      >
-        CLEAR TRANSMISSION LOG
-      </button>
+      <div className="flex justify-center gap-4 mb-4">
+        <button
+          onClick={clearHistory}
+          className="px-3 py-1 bg-gradient-to-r from-navy-700 to-navy-800 text-white rounded-full shadow-md hover:from-red-600 hover:to-red-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-navy-500 font-mono text-xs"
+        >
+          CLEAR TRANSMISSION LOG
+        </button>
+        <button
+          onClick={handleSummarize}
+          disabled={isSummarizing || messages.length === 0}
+          className={`px-3 py-1 bg-gradient-to-r from-navy-700 to-navy-800 text-white rounded-full shadow-md hover:from-blue-600 hover:to-blue-700 transform transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-navy-500 font-mono text-xs ${
+            isSummarizing || messages.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSummarizing ? 'ANALYZING...' : 'MISSION DEBRIEF'}
+        </button>
+      </div>
     </div>
   );
 }
