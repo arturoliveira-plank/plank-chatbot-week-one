@@ -10,7 +10,6 @@ A military-grade chatbot that embodies the personality of a Navy SEAL, built wit
 - 🎨 Modern UI with Tailwind CSS and Radix UI components
 - 🔐 Authentication with Supabase
 - 📊 Conversation history and state management
-- 🌙 Dark/Light mode support
 - 🚀 Built with Next.js 15 and TypeScript
 - 📱 Responsive design
 
