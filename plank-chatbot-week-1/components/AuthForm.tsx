@@ -32,7 +32,7 @@ export function AuthForm() {
       } else {
         if (isLogin) {
           setSuccess('Login successful!')
-          router.push('/')
+          router.push('/') 
         } else {
           setSuccess('Account created successfully! Please confirm the registration email.')
           setIsLogin(true)
