@@ -46,7 +46,7 @@ export function useAuth() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: 'https://chatbot-week-one.vercel.app/auth/callback',
           data: {
             email: email,
           },
