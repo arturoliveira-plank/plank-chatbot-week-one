@@ -100,7 +100,7 @@ const weatherNode = async (state: typeof AgentState.State, config?: RunnableConf
   console.log("Using weather agent");
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [...state.messages, new HumanMessage({ content: `Weather Agent: ${lastMessage.content}` })], // Append to history
+    messages: [...state.messages, new HumanMessage({ content: `${lastMessage.content}` })], // Append to history
     lastResponse: `Weather Agent: ${lastMessage.content}`,
   };
 };
@@ -118,7 +118,7 @@ const newsNode = async (state: typeof AgentState.State, config?: RunnableConfig)
   const result = await newsAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [...state.messages, new HumanMessage({ content: `News Agent: ${lastMessage.content}` })], // Append to history
+    messages: [...state.messages, new HumanMessage({ content: `${lastMessage.content}` })], // Append to history
     lastResponse: `News Agent: ${lastMessage.content}`,
   };
 };
@@ -135,7 +135,7 @@ const chatNode = async (state: typeof AgentState.State, config?: RunnableConfig)
   const result = await chatAgent.invoke(state, config);
   const lastMessage = result.messages[result.messages.length - 1];
   return {
-    messages: [...state.messages, new HumanMessage({ content: `Chat Agent: ${lastMessage.content}` })], // Append to history
+    messages: [...state.messages, new HumanMessage({ content: `${lastMessage.content}` })], // Append to history
     lastResponse: `Chat Agent: ${lastMessage.content}`,
   };
 };
