@@ -27,7 +27,7 @@ export function useAuth() {
 
   const signUp = async (email: string, password: string) => {
     try {
-      // Primeiro, verifica se o usuário já existe
+      // First, check if the user already exists
       const { data: existingUser } = await supabase
         .from('auth.users')
         .select('email')
@@ -37,11 +37,11 @@ export function useAuth() {
       if (existingUser) {
         return { 
           data: null, 
-          error: new Error('Este email já está cadastrado. Por favor, faça login ou use outro email.') 
+          error: new Error('This email is already registered. Please login or use another email.') 
         }
       }
   
-      // Se não existir, cria o novo usuário
+      // If the user does not exist, create a new user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -58,7 +58,7 @@ export function useAuth() {
       return { 
         data, 
         error: null,
-        message: 'Por favor, verifique seu email para confirmar sua conta.' 
+        message: 'Please confirm your email to complete registration.' 
       }
     } catch (error) {
       return { 
