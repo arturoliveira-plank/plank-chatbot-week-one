@@ -193,7 +193,7 @@ export default function ChatInterface() {
                 )}
               </div>
               <div className="text-xs text-navy-300 mt-2 font-mono">
-                {message.role === 'user' ? 'CIVILIAN' : 'SEAL AGENT DAVID'}
+                {message.role === 'user' ? 'CIVILIAN' : 'NAVY SEAL AGENT DAVID'}
               </div>
             </div>
           </div>
