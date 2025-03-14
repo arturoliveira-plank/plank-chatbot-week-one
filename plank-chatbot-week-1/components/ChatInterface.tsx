@@ -42,6 +42,7 @@ export default function ChatInterface() {
     initialMessages: [],
     body: {
       id: chatId,
+      messages: messages,
     },
     onResponse: async (response) => {
       if (!response.ok) {
