@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
               chunk?.chat?.lastResponse ||
               chunk?.weather?.lastResponse ||
               chunk?.news?.lastResponse ||
-              chunk?.summary?.lastResponse || // Add summary agent response
+              chunk?.summary?.lastResponse ||
+              chunk?.websearch?.lastResponse || // Add web search agent response
               '';
             if (content) {
               const encodedChunk = new TextEncoder().encode(content);

@@ -30,7 +30,7 @@ const AgentState = Annotation.Root({
   }),
 });
 
-const members = ["news", "weather", "chat", "summary"] as const;
+const members = ["news", "weather", "chat", "summary", "websearch"] as const;
 //const members = ["news", "weather", "chat"] as const;
 
 const supervisorPrompt =
@@ -39,6 +39,7 @@ const supervisorPrompt =
   " respond with the worker to act next. Each worker will perform a" +
   " task and respond with their results and status. " +
   " the summary agent will only be used when the user clearly asks for mission debrief " +
+  " the websearch agent should be used for general web searches and information gathering " +
   "When the conversation is complete or" +
   " the user's request has been satisfied, respond with FINISH.";
 
@@ -156,6 +157,24 @@ const summaryNode = async (state: typeof AgentState.State, config?: RunnableConf
   };
 };
 
+const webSearchAgent = createReactAgent({
+  llm,
+  tools: toolsWeather,
+  stateModifier: new SystemMessage(commonPersonality + "You are web search agent. You may use the Tavily search engine to search the web for any information. "+
+    "Be direct and maintain the tough SEAL agent persona. " +
+    "Provide concise and relevant information from your web searches.")
+});
+
+const webSearchNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
+  console.log("Using web search agent");
+  const result = await webSearchAgent.invoke(state, config);
+  const lastMessage = result.messages[result.messages.length - 1];
+  return {
+    messages: [...state.messages, new HumanMessage({ content: `${lastMessage.content}` })],
+    lastResponse: `Web Search Agent: ${lastMessage.content}`,
+  };
+};
+
 const supervisorNode = async (state: typeof AgentState.State, config?: RunnableConfig) => {
   const result = await supervisorChain.invoke(state, config);
   if (state.lastResponse && state.messages.length > 1) { // Check if there's a response and history exists
@@ -169,6 +188,7 @@ const builder = new StateGraph(AgentState)
   .addNode("news", newsNode)
   .addNode("chat", chatNode)
   .addNode("summary", summaryNode)
+  .addNode("websearch", webSearchNode)
   .addNode("supervisor", supervisorNode);
 
 members.forEach((member) => {

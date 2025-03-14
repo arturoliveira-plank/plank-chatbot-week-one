@@ -31,7 +31,25 @@ export default function ChatInterface() {
   }, [chatId]);
 
   const [streamingContent, setStreamingContent] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // Initialize with a welcome message
+    return [{
+      id: 'welcome',
+      role: 'assistant',
+      content: `**ATTENTION CIVILIAN! SEAL AGENT DAVID REPORTING.**
+
+Here's your tactical support team:
+
+🌤️ **Weather Agent** - Real-time weather intel and forecasts
+📰 **News Agent** - Latest headlines and breaking news
+🔍 **Web Search Agent** - Information reconnaissance
+💬 **Chat Agent** - Direct communication support
+
+**MISSION DEBRIEF available on demand.**
+
+Status: Ready for deployment. What's your request, civilian?`
+    }];
+  });
   const [lastAssistantMessage, setLastAssistantMessage] = useState<string>("");
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summary, setSummary] = useState<string>("");
@@ -219,6 +237,9 @@ export default function ChatInterface() {
     if (content.startsWith('Chat Agent:')) {
       return content.replace('Chat Agent: ', '');
     }
+    if (content.startsWith('Web Search Agent:')) {
+      return content.replace('Web Search Agent: ', '');
+    }
     return content;
   };
 
@@ -231,6 +252,9 @@ export default function ChatInterface() {
     }
     if (content.startsWith('Chat Agent:')) {
       return 'CHAT AGENT DAVID';
+    }
+    if (content.startsWith('Web Search Agent:')) {
+      return 'WEB SEARCH AGENT DAVID';
     }
 
     return 'SEAL AGENT DAVID';
