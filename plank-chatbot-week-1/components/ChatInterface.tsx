@@ -171,6 +171,34 @@ export default function ChatInterface() {
     );
   }
 
+
+  const removeAgentPrefix = (content: string) => {
+    if (content.startsWith('Weather Agent:')) {
+      return content.replace('Weather Agent: ', '');
+    }
+    if (content.startsWith('News Agent:')) {
+      return content.replace('News Agent: ', '');
+    }
+    if (content.startsWith('Chat Agent:')) {
+      return content.replace('Chat Agent: ', '');
+    }
+    return content;
+  };
+
+  const getAgentType = (content: string) => {
+    if (content.startsWith('Weather Agent:')) {
+      return 'WEATHER AGENT DAVID';
+    }
+    if (content.startsWith('News Agent:')) {
+      return 'NEWS AGENT DAVID';
+    }
+    if (content.startsWith('Chat Agent:')) {
+      return 'CHAT AGENT DAVID';
+    }
+
+    return 'SEAL AGENT DAVID';
+  };
+
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-navy-900 via-navy-800 to-navy-900 text-white">
       <div className="chat-container flex-1 overflow-y-auto p-4 space-y-4">
@@ -187,13 +215,13 @@ export default function ChatInterface() {
               } shadow-lg hover:shadow-xl transition-all duration-300`}
             >
               <div className="whitespace-pre-wrap font-mono text-sm">
-                {message.content}
+                {removeAgentPrefix(message.content)}
                 {message.id === 'streaming' && (
                   <span className="inline-block animate-pulse text-navy-300">▊</span>
                 )}
               </div>
               <div className="text-xs text-navy-300 mt-2 font-mono">
-                {message.role === 'user' ? 'CIVILIAN' : 'NAVY SEAL AGENT DAVID'}
+                {message.role === 'user' ? 'CIVILIAN' : getAgentType(message.content)}
               </div>
             </div>
           </div>
