@@ -269,34 +269,40 @@ export default function ChatInterface() {
             </div>
           </div>
         ))}
-        {summary && showSummary && (
-          <div className="flex justify-center">
-            <div className="max-w-[80%] p-4 rounded-lg border-2 bg-navy-700 border-navy-500 shadow-lg relative">
-              <button
-                onClick={handleCloseSummary}
-                className="absolute top-2 right-2 text-navy-300 hover:text-white transition-colors duration-200"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-              <div className="font-mono text-sm whitespace-pre-wrap">
-                <div className="text-navy-300 mb-2">MISSION DEBRIEF:</div>
-                {displayedSummary.split(/(\*\*.*?\*\*)/).map((part, index) => {
-                  if (part.startsWith('**') && part.endsWith('**')) {
-                    // Remove the ** and make the text bold
-                    return <span key={index} className="font-bold">{part.slice(2, -2)}</span>;
-                  }
-                  return part;
-                })}
-                {isTypingSummary && (
-                  <span className="inline-block animate-pulse text-navy-300">▊</span>
-                )}
+      </div>
+
+      {/* Mission Debrief Modal */}
+      {summary && showSummary && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-navy-900 border-2 border-navy-500 rounded-lg shadow-xl max-w-2xl w-full mx-4 relative">
+            <button
+              onClick={handleCloseSummary}
+              className="absolute top-4 right-4 text-navy-300 hover:text-white transition-colors duration-200"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <div className="p-6">
+              <div className="font-mono text-sm">
+                <div className="text-navy-300 mb-4 text-lg font-bold">MISSION DEBRIEF</div>
+                <div className="whitespace-pre-wrap">
+                  {displayedSummary.split(/(\*\*.*?\*\*)/).map((part, index) => {
+                    if (part.startsWith('**') && part.endsWith('**')) {
+                      // Remove the ** and make the text bold
+                      return <span key={index} className="font-bold">{part.slice(2, -2)}</span>;
+                    }
+                    return part;
+                  })}
+                  {isTypingSummary && (
+                    <span className="inline-block animate-pulse text-navy-300">▊</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <form onSubmit={handleCustomSubmit} className="p-4 bg-navy-900 border-t-2 border-navy-700">
         <div className="flex gap-2">
